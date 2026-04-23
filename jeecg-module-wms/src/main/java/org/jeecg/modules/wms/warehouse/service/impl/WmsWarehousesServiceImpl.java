@@ -56,4 +56,50 @@ public class WmsWarehousesServiceImpl extends ServiceImpl<WmsWarehousesMapper, W
 
         this.updateById(wmsWarehouses);
     }
+
+    /**
+     * 仓库启用
+     *
+     * @param id
+     * @return
+     */
+    public void enable(String id) {
+        //根据ID查询仓库
+        WmsWarehouses wmsWarehouses = this.getById(id);
+        //如果仓库不存在
+        if(wmsWarehouses==null){
+            throw new JeecgBootException("仓库不存在");
+        }
+        //仓库状态为‘创建’或‘禁用’时才可以启用
+        String status = wmsWarehouses.getStatus();
+        if(!status.equals(WarehouseDictEnum.STATUS_CREATED.getCode())||status.equals(WarehouseDictEnum.STATUS_ACTIVE.getCode())){
+            throw new JeecgBootException("仓库状态为‘创建’或‘禁用’时才可以启用");
+        }
+        //更新状态
+        wmsWarehouses.setStatus(WarehouseDictEnum.STATUS_ACTIVE.getCode());
+        this.updateById(wmsWarehouses);
+    }
+
+    /**
+     * 仓库禁用
+     *
+     * @param id
+     * @return
+     */
+    public void disable(String id) {
+        //根据ID查询仓库
+        WmsWarehouses wmsWarehouses = this.getById(id);
+        //如果仓库不存在
+        if(wmsWarehouses==null){
+            throw new JeecgBootException("仓库不存在");
+        }
+        //仓库状态为‘启用‘时才可以禁用
+        String status = wmsWarehouses.getStatus();
+        if(!status.equals(WarehouseDictEnum.STATUS_ACTIVE.getCode())){
+            throw new JeecgBootException("仓库状态为‘启用‘时才可以禁用");
+        }
+        //更新状态
+        wmsWarehouses.setStatus(WarehouseDictEnum.STATUS_INACTIVE.getCode());
+        this.updateById(wmsWarehouses);
+    }
 }

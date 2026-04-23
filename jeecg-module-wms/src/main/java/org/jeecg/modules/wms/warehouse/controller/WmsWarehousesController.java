@@ -108,6 +108,36 @@ public class WmsWarehousesController extends JeecgController<WmsWarehouses, IWms
         return Result.OK("编辑成功!");
     }
 
+
+    /**
+     * 仓库启用
+     *
+     * @param id
+     * @return
+     */
+    @AutoLog(value = "仓库表-启用")
+    @Operation(summary = "仓库表-启用")
+    @RequestMapping(value = "/enable",method = {RequestMethod.PUT,RequestMethod.POST})
+    public Result<String> enable(@RequestParam(name = "id", required = true) String id) {
+        wmsWarehousesService.enable(id);
+        return Result.OK("启用成功!");
+    }
+
+    /**
+     * 仓库禁用
+     *
+     * @param id
+     * @return
+     */
+    @AutoLog(value = "仓库表-禁用")
+    @Operation(summary = "仓库表-禁用")
+    @RequestMapping(value = "/disable",method = {RequestMethod.PUT,RequestMethod.POST})
+    public Result<String> disable(@RequestParam(name = "id", required = true) String id) {
+        wmsWarehousesService.disable(id);
+        return Result.OK("禁用成功!");
+    }
+
+
     /**
      * 通过id删除
      *
