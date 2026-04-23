@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jeecg.common.api.vo.Result;
@@ -15,6 +17,7 @@ import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.query.QueryRuleEnum;
 import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.wms.warehouse.entity.WmsStorageZones;
+import org.jeecg.modules.wms.warehouse.entity.WmsWarehouses;
 import org.jeecg.modules.wms.warehouse.service.IWmsStorageZonesService;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -22,6 +25,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 
+import org.jeecg.modules.wms.warehouse.service.IWmsWarehousesService;
 import org.jeecgframework.poi.excel.ExcelImportUtil;
 import org.jeecgframework.poi.excel.def.NormalExcelConstants;
 import org.jeecgframework.poi.excel.entity.ExportParams;
@@ -52,6 +56,9 @@ import org.apache.shiro.authz.annotation.RequiresPermissions;
 public class WmsStorageZonesController extends JeecgController<WmsStorageZones, IWmsStorageZonesService> {
 	@Autowired
 	private IWmsStorageZonesService wmsStorageZonesService;
+
+	@Autowired
+	private IWmsWarehousesService iWmsWarehousesService;
 	
 	/**
 	 * 分页列表查询
@@ -72,6 +79,25 @@ public class WmsStorageZonesController extends JeecgController<WmsStorageZones, 
         QueryWrapper<WmsStorageZones> queryWrapper = QueryGenerator.initQueryWrapper(wmsStorageZones, req.getParameterMap());
 		Page<WmsStorageZones> page = new Page<WmsStorageZones>(pageNo, pageSize);
 		IPage<WmsStorageZones> pageList = wmsStorageZonesService.page(page, queryWrapper);
+
+		//如果pageList为空，直接返回
+		if(pageList.getRecords().isEmpty()){
+			return Result.OK(pageList);
+		}
+		//先提取出pageList的仓库ID，使用stream流
+		List<String> collect = pageList.getRecords().stream().map(WmsStorageZones::getWarehouseId).collect(Collectors.toList());
+		//根据仓库ID查询仓库表，拿到仓库名称
+		BaseMapper<WmsWarehouses> baseMapper = iWmsWarehousesService.getBaseMapper();
+		List<WmsWarehouses> warehouses = baseMapper.selectByIds(collect);
+		//将仓库名称设置到pageList
+		pageList.getRecords().stream().forEach(item->{
+			//仓库ID
+			String warehouseId = item.getWarehouseId();
+			//从warehouses中查询ID所对应的名称
+			WmsWarehouses wmsWarehouses = warehouses.stream().filter(warehouse -> warehouse.getId().equals(warehouseId)).findFirst().orElse(new WmsWarehouses());
+			item.setWarehouseName(wmsWarehouses.getWarehouseName());
+		});
+
 		return Result.OK(pageList);
 	}
 	
