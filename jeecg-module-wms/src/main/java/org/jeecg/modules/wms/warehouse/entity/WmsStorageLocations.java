@@ -4,10 +4,8 @@ import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.util.Date;
 import java.math.BigDecimal;
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.TableLogic;
+
+import com.baomidou.mybatisplus.annotation.*;
 import org.jeecg.common.constant.ProvinceCityArea;
 import org.jeecg.common.util.SpringContextUtils;
 import lombok.Data;
@@ -62,6 +60,7 @@ public class WmsStorageLocations implements Serializable {
     private String locationCode;
 	/**储位类别*/
 	@Excel(name = "储位类别", width = 15)
+    @Dict(dicCode = "location_category")
     @Schema(description = "储位类别")
     private String locationCategory;
 	/**库位类型*/
@@ -70,8 +69,8 @@ public class WmsStorageLocations implements Serializable {
     @Schema(description = "库位类型")
     private String locationType;
 	/**状态*/
-	@Excel(name = "状态", width = 15, dicCode = "dict_item_status")
-	@Dict(dicCode = "dict_item_status")
+	@Excel(name = "状态", width = 15, dicCode = "wms_status")
+	@Dict(dicCode = "wms_status")
     @Schema(description = "状态")
     private String status;
 	/**所属仓库*/
@@ -119,4 +118,14 @@ public class WmsStorageLocations implements Serializable {
 	@Dict(dicCode = "yn")
     @Schema(description = "是否可售")
     private String isSellable;
+
+    /**所属仓库名称*/
+    @TableField(exist = false)
+    @Schema(description = "所属仓库名称")
+    private String warehouseName;
+
+    /**所属库区名称*/
+    @TableField(exist = false)
+    @Schema(description = "所属库区名称")
+    private String zoneName;
 }

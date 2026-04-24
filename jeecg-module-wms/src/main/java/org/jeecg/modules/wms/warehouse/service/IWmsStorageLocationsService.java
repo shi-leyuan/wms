@@ -11,4 +11,19 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface IWmsStorageLocationsService extends IService<WmsStorageLocations> {
 
+    /**
+     *  启用
+     *
+     * @param wmsStorageLocations
+     * @return
+     */
+    void enable(WmsStorageLocations wmsStorageLocations);
+
+    /**
+     *  禁用
+     *
+     * @param wmsStorageLocations
+     * @return
+     */
+    void disable(WmsStorageLocations wmsStorageLocations);
 }
