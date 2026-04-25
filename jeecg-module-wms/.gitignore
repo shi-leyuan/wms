@@ -31,3 +31,5 @@ build/
 
 ### VS Code ###
 .vscode/
+
+jeecg-module-system/jeecg-system-start/src/main/resources/application-dev.yml

@@ -11,4 +11,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface IWmsProductBrandService extends IService<WmsProductBrand> {
 
+    /**
+     * 编辑
+     * @param wmsProductBrand
+     */
+    void edit(WmsProductBrand wmsProductBrand);
 }
