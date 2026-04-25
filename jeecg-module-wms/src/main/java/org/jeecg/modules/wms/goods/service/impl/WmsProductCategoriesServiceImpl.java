@@ -21,6 +21,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
 import javax.swing.plaf.basic.BasicSeparatorUI;
 
+
+import org.jeecg.modules.wms.config.WarehouseDictEnum;
+
 /**
  * @Description: 商品类别
  * @Author: jeecg-boot
@@ -404,6 +407,74 @@ public class WmsProductCategoriesServiceImpl extends ServiceImpl<WmsProductCateg
                 item.setParentName(parentNameMap.getOrDefault(parentId, ""));
             }
         });
+    }
+
+    /**
+     * 启用
+     *
+     * @param id
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void enable(String id) {
+        if (oConvertUtils.isEmpty(id)) {
+            throw new JeecgBootException("商品类别ID不能为空");
+        }
+        WmsProductCategories category = this.getById(id);
+        if (category == null) {
+            throw new JeecgBootException("商品类别不存在");
+        }
+        String status = category.getStatus();
+        if (!WarehouseDictEnum.STATUS_CREATED.getCode().equals(status) && !WarehouseDictEnum.STATUS_INACTIVE.getCode().equals(status)) {
+            throw new JeecgBootException("只有‘创建’或‘禁用’状态的商品类别才可以启用");
+        }
+        String parentId = category.getParentId();
+        // 子级类别启用前，父级必须是 ACTIVE
+        // 只有非根节点才需要校验父级状态
+        if (oConvertUtils.isNotEmpty(parentId) && !IWmsProductCategoriesService.ROOT_PID_VALUE.equals(parentId)) {
+            WmsProductCategories parent = this.getById(parentId);
+            if (parent == null) {
+                throw new JeecgBootException("父级商品类别不存在，无法启用");
+            }
+            if (!WarehouseDictEnum.STATUS_ACTIVE.getCode().equals(parent.getStatus())) {
+                throw new JeecgBootException("父级商品类别未启用，不能启用当前子级类别");
+            }
+        }
+        category.setStatus("ACTIVE");
+        this.updateById(category);
+    }
+
+    /**
+     * 禁用
+     * 需要做级联
+     * 启用子级类别前，父级必须是 ACTIVE
+     * 禁用父级时，自动级联禁用所有子级
+     *
+     * @param id
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void disable(String id) {
+        if (oConvertUtils.isEmpty(id)) {
+            throw new JeecgBootException("商品类别ID不能为空");
+        }
+        WmsProductCategories category = this.getById(id);
+        if (category == null) {
+            throw new JeecgBootException("商品类别不存在");
+        }
+        String status = category.getStatus();
+        if (!status.equals(WarehouseDictEnum.STATUS_ACTIVE.getCode())) {
+            throw new JeecgBootException("只有‘启用’状态的商品类别才可以禁用");
+        }
+        // 查询当前节点以及所有子节点 id
+        String ids = queryTreeChildIds(id);
+        List<String> idList = Arrays.asList(ids.split(","));
+        List<WmsProductCategories> categoryList = this.listByIds(idList);
+        if (categoryList == null || categoryList.isEmpty()) {
+            throw new JeecgBootException("商品类别不存在");
+        }
+        for (WmsProductCategories item : categoryList) {
+            item.setStatus("INACTIVE");
+        }
+        this.updateBatchById(categoryList);
     }
 
 }
