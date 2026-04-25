@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -16,6 +17,7 @@ import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.query.QueryRuleEnum;
 import org.jeecg.common.util.oConvertUtils;
+import org.jeecg.modules.wms.config.WarehouseDictEnum;
 import org.jeecg.modules.wms.warehouse.entity.WmsStorageZones;
 import org.jeecg.modules.wms.warehouse.entity.WmsWarehouses;
 import org.jeecg.modules.wms.warehouse.service.IWmsStorageZonesService;
@@ -142,7 +144,7 @@ public class WmsStorageZonesController extends JeecgController<WmsStorageZones, 
      */
     @AutoLog(value = "储区表-启用")
     @Operation(summary = "储区表-启用")
-    @RequestMapping(value = "/enable",method = {RequestMethod.PUT,RequestMethod.POST})
+    @RequestMapping(value = "/enable", method = {RequestMethod.PUT, RequestMethod.POST})
     public Result<String> enable(@RequestParam(name = "id", required = true) String id) {
         wmsStorageZonesService.enable(id);
         return Result.OK("启用成功!");
@@ -156,7 +158,7 @@ public class WmsStorageZonesController extends JeecgController<WmsStorageZones, 
      */
     @AutoLog(value = "储区表-禁用")
     @Operation(summary = "储区表-禁用")
-    @RequestMapping(value = "/disable",method = {RequestMethod.PUT,RequestMethod.POST})
+    @RequestMapping(value = "/disable", method = {RequestMethod.PUT, RequestMethod.POST})
     public Result<String> disable(@RequestParam(name = "id", required = true) String id) {
         wmsStorageZonesService.disable(id);
         return Result.OK("禁用成功!");
@@ -235,4 +237,21 @@ public class WmsStorageZonesController extends JeecgController<WmsStorageZones, 
         return super.importExcel(request, response, WmsStorageZones.class);
     }
 
+    /**
+     * 根据仓库查询启用状态的储区列表
+     *
+     * @param warehouseId 仓库ID
+     * @return
+     */
+    @GetMapping(value = "/activeListByWarehouse")
+    public Result<List<WmsStorageZones>> activeListByWarehouse(@RequestParam(name = "warehouseId", required = true) String warehouseId) {
+        List<WmsStorageZones> list = wmsStorageZonesService.list(
+                new LambdaQueryWrapper<WmsStorageZones>()
+                        .eq(WmsStorageZones::getWarehouseId, warehouseId)
+                        .eq(WmsStorageZones::getStatus, WarehouseDictEnum.STATUS_ACTIVE.getCode())
+                        .orderByAsc(WmsStorageZones::getZoneCode)
+        );
+
+        return Result.OK(list);
+    }
 }

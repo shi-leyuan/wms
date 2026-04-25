@@ -11,7 +11,7 @@ import org.jeecg.modules.wms.warehouse.service.IWmsStorageZonesService;
 import org.jeecg.modules.wms.warehouse.service.IWmsWarehousesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
+import org.jeecg.common.util.oConvertUtils;
 
 
 @Service
@@ -93,6 +93,7 @@ public class WmsStorageZonesServiceImpl extends ServiceImpl<WmsStorageZonesMappe
         }
 
         wmsStorageZones.setStatus(WarehouseDictEnum.STATUS_CREATED.getCode());
+        checkWarehouseActive(wmsStorageZones.getWarehouseId());
         this.save(wmsStorageZones);
     }
 
@@ -122,6 +123,25 @@ public class WmsStorageZonesServiceImpl extends ServiceImpl<WmsStorageZonesMappe
             throw new JeecgBootException("仓库不存在");
         }
 
+        checkWarehouseActive(wmsStorageZones.getWarehouseId());
         this.updateById(wmsStorageZones);
+    }
+
+    /**
+     * 校验所属仓库是否可用
+     *
+     * @param warehouseId 仓库ID
+     */
+    private void checkWarehouseActive(String warehouseId) {
+        if (oConvertUtils.isEmpty(warehouseId)) {
+            throw new JeecgBootException("所属仓库不能为空");
+        }
+        WmsWarehouses wmsWarehouse = wmsWarehousesService.getById(warehouseId);
+        if (wmsWarehouse == null) {
+            throw new JeecgBootException("所属仓库不存在");
+        }
+        if (!WarehouseDictEnum.STATUS_ACTIVE.getCode().equals(wmsWarehouse.getStatus())) {
+            throw new JeecgBootException("所属仓库未启用，不能创建或编辑储区");
+        }
     }
 }

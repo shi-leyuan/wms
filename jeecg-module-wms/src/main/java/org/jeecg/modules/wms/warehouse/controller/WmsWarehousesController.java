@@ -9,12 +9,14 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.query.QueryRuleEnum;
 import org.jeecg.common.util.oConvertUtils;
+import org.jeecg.modules.wms.config.WarehouseDictEnum;
 import org.jeecg.modules.wms.warehouse.entity.WmsWarehouses;
 import org.jeecg.modules.wms.warehouse.service.IWmsWarehousesService;
 
@@ -117,7 +119,7 @@ public class WmsWarehousesController extends JeecgController<WmsWarehouses, IWms
      */
     @AutoLog(value = "仓库表-启用")
     @Operation(summary = "仓库表-启用")
-    @RequestMapping(value = "/enable",method = {RequestMethod.PUT,RequestMethod.POST})
+    @RequestMapping(value = "/enable", method = {RequestMethod.PUT, RequestMethod.POST})
     public Result<String> enable(@RequestParam(name = "id", required = true) String id) {
         wmsWarehousesService.enable(id);
         return Result.OK("启用成功!");
@@ -131,7 +133,7 @@ public class WmsWarehousesController extends JeecgController<WmsWarehouses, IWms
      */
     @AutoLog(value = "仓库表-禁用")
     @Operation(summary = "仓库表-禁用")
-    @RequestMapping(value = "/disable",method = {RequestMethod.PUT,RequestMethod.POST})
+    @RequestMapping(value = "/disable", method = {RequestMethod.PUT, RequestMethod.POST})
     public Result<String> disable(@RequestParam(name = "id", required = true) String id) {
         wmsWarehousesService.disable(id);
         return Result.OK("禁用成功!");
@@ -210,4 +212,18 @@ public class WmsWarehousesController extends JeecgController<WmsWarehouses, IWms
         return super.importExcel(request, response, WmsWarehouses.class);
     }
 
+    /**
+     * 查询启用状态的仓库列表
+     *
+     * @return
+     */
+    @GetMapping(value = "/activeList")
+    public Result<List<WmsWarehouses>> activeList() {
+        List<WmsWarehouses> list = wmsWarehousesService.list(
+                new LambdaQueryWrapper<WmsWarehouses>()
+                        .eq(WmsWarehouses::getStatus, WarehouseDictEnum.STATUS_ACTIVE.getCode())
+                        .orderByAsc(WmsWarehouses::getWarehouseCode)
+        );
+        return Result.OK(list);
+    }
 }
