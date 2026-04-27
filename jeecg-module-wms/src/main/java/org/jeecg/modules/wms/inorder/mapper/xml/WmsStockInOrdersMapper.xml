@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.jeecg.modules.wms.inorder.mapper.WmsStockInOrdersMapper">
+
+    <select id="queryPageList"
+            resultType="org.jeecg.modules.wms.inorder.entity.WmsStockInOrders">
+        SELECT
+            a.*,
+            ow.owner_name AS ownerName,
+            wh.warehouse_name AS warehouseName
+        FROM wms_stock_in_orders a
+                 LEFT JOIN wms_cargo_owners ow ON a.owner_id = ow.id
+                 LEFT JOIN wms_warehouses wh ON a.warehouse_id = wh.id
+            ${ew.customSqlSegment}
+    </select>
+
+</mapper>
