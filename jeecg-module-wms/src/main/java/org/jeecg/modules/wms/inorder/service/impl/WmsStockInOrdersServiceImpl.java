@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import org.jeecg.common.util.oConvertUtils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -172,4 +173,68 @@ public class WmsStockInOrdersServiceImpl extends ServiceImpl<WmsStockInOrdersMap
         return "ASN" + time + incrStr;
     }
 
+    /**
+     * 提交审核
+     *
+     * @param id 入库单ID
+     * @return
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void submitAudit(String id) {
+        if (oConvertUtils.isEmpty(id)) {
+            throw new JeecgBootException("入库单ID不能为空");
+        }
+        WmsStockInOrders order = this.getById(id);
+        if (order == null) {
+            throw new JeecgBootException("入库单不存在");
+        }
+        String status = order.getStatus();
+        if (!WarehouseDictEnum.INBOUND_INITIAL.getCode().equals(status) && !WarehouseDictEnum.INBOUND_REJECTED.getCode().equals(status)) {
+            throw new JeecgBootException("只有初始状态或审核失败状态的入库单可以提交审核");
+        }
+        order.setStatus(WarehouseDictEnum.INBOUND_SUBMIT_AUDIT.getCode());
+        boolean b = this.updateById(order);
+        if (!b) {
+            throw new JeecgBootException("提交审核失败");
+        }
+    }
+
+
+    /**
+     * 审核入库单
+     * @param id
+     * @param auditStatus
+     * @return
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void audit(String id, String auditStatus) {
+        if (oConvertUtils.isEmpty(id)) {
+            throw new JeecgBootException("入库单ID不能为空");
+        }
+        if (oConvertUtils.isEmpty(auditStatus)) {
+            throw new JeecgBootException("审核结果不能为空");
+        }
+        WmsStockInOrders order = this.getById(id);
+        if (order == null) {
+            throw new JeecgBootException("入库单不存在");
+        }
+        String status = order.getStatus();
+        // 只有提交审核状态可以审核
+        if (!WarehouseDictEnum.OUTBOUND_SUBMIT_AUDIT.getCode().equals(status)) {
+            throw new JeecgBootException("只有提交审核状态的入库单可以审核");
+        }
+        boolean approved = WarehouseDictEnum.INBOUND_APPROVED.getCode().equals(auditStatus);
+        boolean rejected = WarehouseDictEnum.INBOUND_REJECTED.getCode().equals(auditStatus);
+
+        if (!approved && !rejected) {
+            throw new JeecgBootException("审核结果不合法");
+        }
+
+        order.setStatus(auditStatus);
+
+        boolean b = this.updateById(order);
+        if (!b) {
+            throw new JeecgBootException("审核失败");
+        }
+    }
 }

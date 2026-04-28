@@ -272,4 +272,33 @@ public class WmsStockInOrdersController {
         return Result.OK("文件导入失败！");
     }
 
+    /**
+     * 提交审核
+     *
+     * @param id 入库单ID
+     * @return
+     */
+    @AutoLog(value = "入库单主表-提交审核")
+    @Operation(summary = "入库单主表-提交审核")
+    @PostMapping(value = "/submitAudit")
+//    @RequiresPermissions("inorder:wms_stock_in_orders:submitAudit")  权限设置
+    public Result<String> submitAudit(@RequestParam(name = "id", required = true) String id) {
+        wmsStockInOrdersService.submitAudit(id);
+        return Result.OK("提交审核成功！");
+    }
+
+    /**
+     * 审核入库单
+     * @param body
+     * @return
+     */
+    @AutoLog(value = "入库单主表-审核")
+    @Operation(summary = "入库单主表-审核")
+    @PostMapping("/audit")
+    public Result<String> audit(@RequestBody Map<String,Object> body) {
+        String id = String.valueOf(body.get("id"));
+        String auditStatus = String.valueOf(body.get("status"));
+        wmsStockInOrdersService.audit(id, auditStatus);
+        return Result.OK("审核成功！");
+    }
 }

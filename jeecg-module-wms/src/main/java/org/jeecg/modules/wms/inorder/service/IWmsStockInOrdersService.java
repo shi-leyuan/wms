@@ -50,4 +50,20 @@ public interface IWmsStockInOrdersService extends IService<WmsStockInOrders> {
 	 * @param wmsStockInOrders
 	 */
     void add(WmsStockInOrders wmsStockInOrders);
+
+	/**
+	 * 提交审核
+	 *
+	 * @param id 入库单ID
+	 * @return
+	 */
+	void submitAudit(String id);
+
+	/**
+	 * 审核入库单
+	 * @param id
+	 * @param auditStatus
+	 * @return
+	 */
+	void audit(String id, String auditStatus);
 }
