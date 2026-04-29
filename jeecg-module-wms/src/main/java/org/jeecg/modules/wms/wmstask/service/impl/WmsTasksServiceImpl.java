@@ -1,6 +1,10 @@
 package org.jeecg.modules.wms.wmstask.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.PageDTO;
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
 import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.common.util.DateUtils;
 import org.jeecg.common.util.RedisUtil;
@@ -107,6 +111,24 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
         if (!update) {
             throw new JeecgBootException("创建收货任务过程中更新入库单明细状态失败");
         }
+    }
+
+    /**
+     * 查询待办理任务列表
+     *
+     * @param wmsTasks
+     * @return
+     */
+    public IPage<WmsTasks> list(WmsTasks wmsTasks, Integer pageNo, Integer pageSize) {
+        Page<WmsTasks> page = PageHelper.startPage(pageNo, pageSize);
+        List<WmsTasks> list = baseMapper.queryTaskList(wmsTasks);
+        PageDTO<WmsTasks> wmsTasksPageDTO = new PageDTO<>();
+        wmsTasksPageDTO.setRecords(list);
+        wmsTasksPageDTO.setTotal(page.getTotal());
+        wmsTasksPageDTO.setSize(page.getPageSize());
+        wmsTasksPageDTO.setCurrent(page.getPageNum());
+        wmsTasksPageDTO.setPages(page.getPages());
+        return wmsTasksPageDTO;
     }
 
     /**

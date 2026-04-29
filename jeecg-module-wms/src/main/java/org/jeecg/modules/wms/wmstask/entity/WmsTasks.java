@@ -4,10 +4,8 @@ import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.util.Date;
 import java.math.BigDecimal;
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.TableLogic;
+
+import com.baomidou.mybatisplus.annotation.*;
 import org.jeecg.common.constant.ProvinceCityArea;
 import org.jeecg.common.util.SpringContextUtils;
 import lombok.Data;
@@ -63,10 +61,12 @@ public class WmsTasks implements Serializable {
 	/**任务类型*/
 	@Excel(name = "任务类型", width = 15)
     @Schema(description = "任务类型")
+    @Dict(dicCode = "task_type")
     private String taskType;
 	/**任务状态*/
 	@Excel(name = "任务状态", width = 15)
     @Schema(description = "任务状态")
+    @Dict(dicCode = "task_status")
     private String taskStatus;
 	/**商品id*/
 	@Excel(name = "商品id", width = 15)
@@ -150,4 +150,32 @@ public class WmsTasks implements Serializable {
 	@Excel(name = "目的仓库", width = 15)
     @Schema(description = "目的仓库")
     private String targetWarehouseId;
+    /**
+     * 货主名称
+     */
+    @Excel(name = "货主名称", width = 15)
+    @Schema(description = "货主名称")
+    @TableField(exist = false)
+    private java.lang.String ownerName;
+    /**
+     * 商品名称
+     */
+    @Excel(name = "商品名称", width = 15)
+    @Schema(description = "商品名称")
+    @TableField(exist = false)
+    private java.lang.String productName;
+    /**
+     * 入库单号
+     */
+    @Excel(name = "入库单号", width = 15)
+    @Schema(description = "入库单号")
+    @TableField(exist = false)
+    private java.lang.String stockInOrderNumber;
+    /**
+     * 仓库名称
+     */
+    @Excel(name = "仓库名称", width = 15)
+    @Schema(description = "仓库名称")
+    @TableField(exist = false)
+    private java.lang.String warehouseName;
 }

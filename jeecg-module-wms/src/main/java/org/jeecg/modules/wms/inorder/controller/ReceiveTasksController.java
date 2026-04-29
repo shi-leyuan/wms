@@ -9,11 +9,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.apache.shiro.subject.PrincipalCollection;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.aspect.annotation.AutoLog;
 import org.jeecg.common.system.base.controller.JeecgController;
 import org.jeecg.common.system.query.QueryGenerator;
+import org.jeecg.common.system.vo.LoginUser;
 import org.jeecg.modules.wms.wmstask.entity.WmsTasks;
 import org.jeecg.modules.wms.wmstask.entity.WmsTasksRecords;
 import org.jeecg.modules.wms.wmstask.service.IWmsTasksRecordsService;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * @Description: 收货任务接口类
@@ -41,6 +45,27 @@ public class ReceiveTasksController {
     @Autowired
     private IWmsTasksRecordsService wmsTasksRecordsService;
 
+//    /**
+//     * 待收货任务查询
+//     *
+//     * @param wmsTasks
+//     * @param pageNo
+//     * @param pageSize
+//     * @param req
+//     * @return
+//     */
+//    @Operation(summary = "待收货任务查询")
+//    @GetMapping(value = "/list")
+//    public Result<IPage<WmsTasks>> queryPageList(WmsTasks wmsTasks,
+//                                                 @RequestParam(name = "pageNo", defaultValue = "1") Integer pageNo,
+//                                                 @RequestParam(name = "pageSize", defaultValue = "10") Integer pageSize,
+//                                                 HttpServletRequest req) {
+//        QueryWrapper<WmsTasks> queryWrapper = QueryGenerator.initQueryWrapper(wmsTasks, req.getParameterMap());
+//        Page<WmsTasks> page = new Page<WmsTasks>(pageNo, pageSize);
+//        IPage<WmsTasks> pageList = wmsTasksService.page(page, queryWrapper);
+//        return Result.OK(pageList);
+//    }
+
     /**
      * 待收货任务查询
      *
@@ -56,10 +81,11 @@ public class ReceiveTasksController {
                                                  @RequestParam(name = "pageNo", defaultValue = "1") Integer pageNo,
                                                  @RequestParam(name = "pageSize", defaultValue = "10") Integer pageSize,
                                                  HttpServletRequest req) {
-        QueryWrapper<WmsTasks> queryWrapper = QueryGenerator.initQueryWrapper(wmsTasks, req.getParameterMap());
-        Page<WmsTasks> page = new Page<WmsTasks>(pageNo, pageSize);
-        IPage<WmsTasks> pageList = wmsTasksService.page(page, queryWrapper);
-        return Result.OK(pageList);
+        //当前用户id
+        LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        wmsTasks.setOperator(sysUser.getId());
+        IPage<WmsTasks> wmsTasksIPage = wmsTasksService.list(wmsTasks, pageNo, pageSize);
+        return Result.OK(wmsTasksIPage);
     }
 
     @Operation(summary = "收货记录查询")
@@ -89,6 +115,7 @@ public class ReceiveTasksController {
 
     /**
      * 创建收货任务
+     *
      * @param orderIds
      * @param operator
      * @return

@@ -159,7 +159,7 @@ public class WmsStockInOrdersController {
     }
 
     /**
-     * 通过id查询
+     * 入库单主表-通过id查
      *
      * @param id
      * @return
@@ -177,13 +177,13 @@ public class WmsStockInOrdersController {
     }
 
     /**
-     * 通过id查询
+     * 入库单明细-通过主表ID查询
      *
      * @param id
      * @return
      */
-    //@AutoLog(value = "入库单明细通过主表ID查询")
-    @Operation(summary = "入库单明细主表ID查询")
+    //@AutoLog(value = "入库单明细-通过主表ID查询")
+    @Operation(summary = "入库单明细-主表ID查询")
     @GetMapping(value = "/queryWmsStockInOrderItemsByMainId")
     public Result<List<WmsStockInOrderItems>> queryWmsStockInOrderItemsListByMainId(@RequestParam(name = "id", required = true) String id) {
         List<WmsStockInOrderItems> wmsStockInOrderItemsList = wmsStockInOrderItemsService.selectByMainId(id);
