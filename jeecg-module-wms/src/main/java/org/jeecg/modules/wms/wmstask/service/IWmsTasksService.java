@@ -3,6 +3,7 @@ package org.jeecg.modules.wms.wmstask.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.jeecg.modules.wms.wmstask.entity.WmsTasks;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.jeecg.modules.wms.wmstask.entity.WmsTasksRecords;
 
 /**
  * @Description: 任务表
@@ -23,8 +24,20 @@ public interface IWmsTasksService extends IService<WmsTasks> {
 
     /**
      * 查询待办理任务列表
+     *
      * @param wmsTasks
      * @return
      */
     IPage<WmsTasks> list(WmsTasks wmsTasks, Integer pageNo, Integer pageSize);
+
+    /**
+     * 收货方法
+     * 共用
+     */
+    void receive(WmsTasksRecords wmsTasksRecords);
+
+    /**
+     * 执行任务
+     */
+    public WmsTasks execute(WmsTasksRecords wmsTasksRecords);
 }

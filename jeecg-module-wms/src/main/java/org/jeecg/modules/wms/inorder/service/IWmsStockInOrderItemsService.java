@@ -19,4 +19,10 @@ public interface IWmsStockInOrderItemsService extends IService<WmsStockInOrderIt
 	 * @return List<WmsStockInOrderItems>
 	 */
 	public List<WmsStockInOrderItems> selectByMainId(String mainId);
+
+	/**
+	 * 更新收货完成状态
+	 * @param stockInOrderItemId 入库单明细id
+	 */
+	void updateReceivedStatus(String stockInOrderItemId);
 }

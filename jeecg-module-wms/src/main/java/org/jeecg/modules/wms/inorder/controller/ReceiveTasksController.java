@@ -135,6 +135,20 @@ public class ReceiveTasksController {
         return Result.OK("创建成功！");
     }
 
+//    /**
+//     * 收货
+//     *
+//     * @param wmsTasksRecords
+//     * @return
+//     */
+//    @AutoLog(value = "收货")
+//    @Operation(summary = "收货")
+//    @RequiresPermissions("inorder:receive_task:addRecords")
+//    @PostMapping(value = "/addRecords")
+//    public Result<String> addRecords(@RequestBody WmsTasksRecords wmsTasksRecords) {
+//        return Result.OK("添加成功！");
+//    }
+
     /**
      * 收货
      *
@@ -146,8 +160,13 @@ public class ReceiveTasksController {
     @RequiresPermissions("inorder:receive_task:addRecords")
     @PostMapping(value = "/addRecords")
     public Result<String> addRecords(@RequestBody WmsTasksRecords wmsTasksRecords) {
+        String taskId = wmsTasksRecords.getId();
+        wmsTasksRecords.setTaskId(taskId);
+        wmsTasksRecords.setId(null);
+        wmsTasksService.receive(wmsTasksRecords);
         return Result.OK("添加成功！");
     }
+
 
     /**
      * 通过id查询

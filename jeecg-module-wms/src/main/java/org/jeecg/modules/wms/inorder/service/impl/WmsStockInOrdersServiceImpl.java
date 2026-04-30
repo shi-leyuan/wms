@@ -202,6 +202,7 @@ public class WmsStockInOrdersServiceImpl extends ServiceImpl<WmsStockInOrdersMap
 
     /**
      * 审核入库单
+     *
      * @param id
      * @param auditStatus
      * @return
@@ -236,5 +237,40 @@ public class WmsStockInOrdersServiceImpl extends ServiceImpl<WmsStockInOrdersMap
         if (!b) {
             throw new JeecgBootException("审核失败");
         }
+    }
+
+    /**
+     * 更新收货完成状态
+     *
+     * @param stockInOrderId 入库单id
+     * @return 更新后的入库单状态
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public String updateReceivedStatus(String stockInOrderId) {
+        WmsStockInOrders stockInOrdersUpdate = getById(stockInOrderId);
+        if (stockInOrdersUpdate == null) {
+            throw new JeecgBootException("入库单不存在");
+        }
+        //当前状态只有是收货中或审核通过时方可更新收货状态
+        if (!(WarehouseDictEnum.INBOUND_RECEIVING.getCode().equals(stockInOrdersUpdate.getStatus())
+                || WarehouseDictEnum.INBOUND_APPROVED.getCode().equals(stockInOrdersUpdate.getStatus()))) {
+            throw new JeecgBootException("非收货中、审核通过状态入库单不允许更新收货状态");
+        }
+        //根据入库单id查询所有入库单明细的完成数量总和
+        List<WmsStockInOrderItems> stockInOrderItems = wmsStockInOrderItemsMapper.selectByMainId(stockInOrderId);
+        //良品数量
+        int totalCompletedQuantity = stockInOrderItems.stream().mapToInt(WmsStockInOrderItems::getReceivedQuantity).sum();
+        //不良品数量
+        int totalBadQuantity = stockInOrderItems.stream().mapToInt(WmsStockInOrderItems::getDefectiveQuantity).sum();
+        // 如果stockInOrderItems中存在一个未收货完成则最终状态为未收货完成，否则为收货完成
+        boolean b1 = stockInOrderItems.stream().anyMatch(stockInOrderItem -> !stockInOrderItem.getStatus().equals(WarehouseDictEnum.INBOUND_DETAIL_RECEIVED.getCode()));
+        String status = b1 ? WarehouseDictEnum.INBOUND_RECEIVING.getCode() : WarehouseDictEnum.INBOUND_RECEIVED.getCode();
+        //更新收货总量
+        stockInOrdersUpdate.setTotalReceivedQuantity(totalCompletedQuantity);
+        //更新不良品数量
+        stockInOrdersUpdate.setTotalDefectiveQuantity(totalBadQuantity);
+        stockInOrdersUpdate.setStatus(status);
+        updateById(stockInOrdersUpdate);
+        return status;
     }
 }
