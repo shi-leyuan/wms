@@ -230,7 +230,7 @@ public class WmsProductsController extends JeecgController<WmsProducts, IWmsProd
 		Result<IPage<WmsProducts>> iPageResult = this.queryPageList(wmsProducts, 1, 100, request);
 		List<WmsProducts> records = iPageResult.getResult().getRecords();
 
-		// 这里注意 有同学反应使用swagger 会导致各种问题，请直接用浏览器或者用postman
+		// 这里注意 使用swagger 会导致各种问题，请直接用浏览器或者用postman
 		response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 		response.setCharacterEncoding("utf-8");
 		// 这里URLEncoder.encode可以防止中文乱码 当然和easyexcel没有关系

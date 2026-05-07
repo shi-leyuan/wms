@@ -24,7 +24,7 @@ import org.jeecg.modules.wms.wmstask.service.IWmsTasksService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
-
+import org.jeecg.modules.wms.wmstask.mapper.WmsTasksRecordsMapper;
 import java.util.Arrays;
 import java.util.List;
 
@@ -44,6 +44,9 @@ public class ReceiveTasksController {
 
     @Autowired
     private IWmsTasksRecordsService wmsTasksRecordsService;
+
+    @Autowired
+    private WmsTasksRecordsMapper wmsTasksRecordsMapper;
 
 //    /**
 //     * 待收货任务查询
@@ -96,7 +99,7 @@ public class ReceiveTasksController {
                                                   HttpServletRequest req) {
         QueryWrapper<WmsTasksRecords> queryWrapper = QueryGenerator.initQueryWrapper(wmsTasksRecords, req.getParameterMap());
         Page<WmsTasksRecords> page = new Page<WmsTasksRecords>(pageNo, pageSize);
-        IPage<WmsTasksRecords> pageList = wmsTasksRecordsService.page(page, queryWrapper);
+        IPage<WmsTasksRecords> pageList = wmsTasksRecordsMapper.queryPageList(page, queryWrapper);
         return Result.OK(pageList);
     }
 

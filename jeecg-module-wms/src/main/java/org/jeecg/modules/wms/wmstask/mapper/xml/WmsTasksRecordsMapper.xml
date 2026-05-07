@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.jeecg.modules.wms.wmstask.mapper.WmsTasksRecordsMapper">
-
+    <select id="queryPageList"
+            resultType="org.jeecg.modules.wms.wmstask.entity.WmsTasksRecords">
+        SELECT
+            r.*,
+            o.order_number AS orderNumber,
+            wh.warehouse_name AS warehouseName,
+            ow.owner_name AS ownerName,
+            p.product_code AS productCode,
+            p.product_name AS productName,
+            u.realname AS operatorName
+        FROM wms_tasks_records r
+                 LEFT JOIN wms_stock_in_orders o ON r.stock_in_order_id = o.id
+                 LEFT JOIN wms_warehouses wh ON r.target_warehouse_id = wh.id
+                 LEFT JOIN wms_cargo_owners ow ON o.owner_id = ow.id
+                 LEFT JOIN wms_products p ON r.product_id = p.id
+                 LEFT JOIN sys_user u ON r.operator = u.id
+            ${ew.customSqlSegment}
+    </select>
 </mapper>

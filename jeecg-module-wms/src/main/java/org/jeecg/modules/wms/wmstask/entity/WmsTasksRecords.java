@@ -4,10 +4,8 @@ import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.util.Date;
 import java.math.BigDecimal;
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.TableLogic;
+
+import com.baomidou.mybatisplus.annotation.*;
 import org.jeecg.common.constant.ProvinceCityArea;
 import org.jeecg.common.util.SpringContextUtils;
 import lombok.Data;
@@ -60,8 +58,9 @@ public class WmsTasksRecords implements Serializable {
 	@Excel(name = "任务号", width = 15)
     @Schema(description = "任务号")
     private String taskNumber;
-	/**任务类型*/
-	@Excel(name = "任务类型", width = 15)
+    /**任务类型*/
+    @Excel(name = "任务类型", width = 15, dicCode = "task_type")
+    @Dict(dicCode = "task_type")
     @Schema(description = "任务类型")
     private String taskType;
 	/**商品id*/
@@ -110,8 +109,9 @@ public class WmsTasksRecords implements Serializable {
 	@Excel(name = "波次单id", width = 15)
     @Schema(description = "波次单id")
     private String waveOrderId;
-	/**库存属性*/
-	@Excel(name = "库存属性", width = 15)
+    /**库存属性*/
+    @Excel(name = "库存属性", width = 15, dicCode = "inventory_attribute")
+    @Dict(dicCode = "inventory_attribute")
     @Schema(description = "库存属性")
     private String inventoryAttribute;
 	/**任务id*/
@@ -144,4 +144,45 @@ public class WmsTasksRecords implements Serializable {
 	@Excel(name = "目的仓库", width = 15)
     @Schema(description = "目的仓库")
     private String targetWarehouseId;
+    /**
+     * 入库单号
+     */
+    @TableField(exist = false)
+    @Schema(description = "入库单号")
+    private String orderNumber;
+
+    /**
+     * 仓库名称
+     */
+    @TableField(exist = false)
+    @Schema(description = "仓库名称")
+    private String warehouseName;
+
+    /**
+     * 货主名称
+     */
+    @TableField(exist = false)
+    @Schema(description = "货主名称")
+    private String ownerName;
+
+    /**
+     * 商品编码
+     */
+    @TableField(exist = false)
+    @Schema(description = "商品编码")
+    private String productCode;
+
+    /**
+     * 商品名称
+     */
+    @TableField(exist = false)
+    @Schema(description = "商品名称")
+    private String productName;
+
+    /**
+     * 执行人名称
+     */
+    @TableField(exist = false)
+    @Schema(description = "执行人名称")
+    private String operatorName;
 }

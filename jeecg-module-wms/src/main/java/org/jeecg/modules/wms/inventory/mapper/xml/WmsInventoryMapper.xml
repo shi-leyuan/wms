@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
 <mapper namespace="org.jeecg.modules.wms.inventory.mapper.WmsInventoryMapper">
+
+    <select id="queryPageList"
+            resultType="org.jeecg.modules.wms.inventory.entity.WmsInventory">
+        SELECT
+            i.*,
+            wh.warehouse_name AS warehouseName,
+            ow.owner_code AS ownerCode,
+            ow.owner_name AS ownerName,
+            p.product_code AS productCode,
+            p.product_name AS productName,
+            loc.location_type AS locationType,
+            zone.zone_type AS zoneType
+        FROM wms_inventory i
+                 LEFT JOIN wms_products p ON i.product_id = p.id
+                 LEFT JOIN wms_cargo_owners ow ON i.owner_id = ow.id
+                 LEFT JOIN wms_warehouses wh ON i.warehouse_id = wh.id
+                 LEFT JOIN wms_storage_locations loc ON i.location_code = loc.location_code
+                 LEFT JOIN wms_storage_zones zone ON loc.zone_id = zone.id
+            ${ew.customSqlSegment}
+    </select>
 
 </mapper>

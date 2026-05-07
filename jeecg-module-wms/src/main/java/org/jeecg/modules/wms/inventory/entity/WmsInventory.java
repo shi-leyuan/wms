@@ -4,10 +4,8 @@ import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.util.Date;
 import java.math.BigDecimal;
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.TableLogic;
+
+import com.baomidou.mybatisplus.annotation.*;
 import org.jeecg.common.constant.ProvinceCityArea;
 import org.jeecg.common.util.SpringContextUtils;
 import lombok.Data;
@@ -101,11 +99,60 @@ public class WmsInventory implements Serializable {
     @Schema(description = "货主")
     private String ownerId;
 	/**是否可售*/
-	@Excel(name = "是否可售", width = 15)
+	@Excel(name = "是否可售", width = 15,dicCode = "yn")
+    @Dict(dicCode = "yn")
     @Schema(description = "是否可售")
     private String isSellable;
 	/**仓库id*/
 	@Excel(name = "仓库id", width = 15)
     @Schema(description = "仓库id")
     private String warehouseId;
+    /**
+     * 仓库名称
+     */
+    @TableField(exist = false)
+    @Schema(description = "仓库名称")
+    private String warehouseName;
+
+    /**
+     * 货主编码
+     */
+    @TableField(exist = false)
+    @Schema(description = "货主编码")
+    private String ownerCode;
+
+    /**
+     * 货主名称
+     */
+    @TableField(exist = false)
+    @Schema(description = "货主名称")
+    private String ownerName;
+
+    /**
+     * 商品编码
+     */
+    @TableField(exist = false)
+    @Schema(description = "商品编码")
+    private String productCode;
+
+    /**
+     * 商品名称
+     */
+    @TableField(exist = false)
+    @Schema(description = "商品名称")
+    private String productName;
+
+    /**
+     * 储位类型
+     */
+    @TableField(exist = false)
+    @Schema(description = "储位类型")
+    private String locationType;
+
+    /**
+     * 储区类型
+     */
+    @TableField(exist = false)
+    @Schema(description = "储区类型")
+    private String zoneType;
 }

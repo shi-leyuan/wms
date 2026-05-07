@@ -66,18 +66,22 @@ public class WmsProducts implements Serializable {
 	/**货主id*/
 	@Excel(name = "货主id", width = 15)
     @Schema(description = "货主id")
+    @ExcelProperty("货主名称")
     private String ownerId;
 	/**商品编码*/
 	@Excel(name = "sku编码", width = 15)
     @Schema(description = "sku编码")
+    @ExcelProperty("sku编码")
     private String productCode;
 	/**商品条码*/
 	@Excel(name = "商品条码", width = 15)
     @Schema(description = "商品条码")
+    @ExcelProperty("商品条码")
     private String productBarcode;
     /**商品规格*/
     @Excel(name = "商品规格", width = 15)
     @Schema(description = "商品规格")
+    @ExcelProperty("商品规格")
     private String productSpec;
     /**商品品牌*/
     @Excel(name = "商品品牌", width = 15)
@@ -86,34 +90,42 @@ public class WmsProducts implements Serializable {
     /**商品批次*/
     @Excel(name = "商品批次", width = 15)
     @Schema(description = "商品批次")
+    @ExcelProperty("商品批次")
     private String productBatch;
 	/**供应商条码*/
 	@Excel(name = "供应商条码", width = 15)
     @Schema(description = "供应商条码")
+    @ExcelProperty("供应商条码")
     private String supplierBarcode;
 	/**宽*/
 	@Excel(name = "宽", width = 15)
     @Schema(description = "宽")
+    @ExcelProperty("宽")
     private Double width;
 	/**长*/
 	@Excel(name = "长", width = 15)
     @Schema(description = "长")
+    @ExcelProperty("长")
     private Double length;
 	/**高*/
 	@Excel(name = "高", width = 15)
     @Schema(description = "高")
+    @ExcelProperty("高")
     private Double height;
 	/**体积*/
 	@Excel(name = "体积", width = 15)
     @Schema(description = "体积")
+    @ExcelProperty("体积")
     private Double volume;
 	/**毛重*/
 	@Excel(name = "毛重", width = 15)
     @Schema(description = "毛重")
+    @ExcelProperty("毛重")
     private Double grossWeight;
 	/**净重*/
 	@Excel(name = "净重", width = 15)
     @Schema(description = "净重")
+    @ExcelProperty("净重")
     private Double netWeight;
 	/**商品一级分类id*/
 	@Excel(name = "商品一级分类id", width = 15)
@@ -122,10 +134,12 @@ public class WmsProducts implements Serializable {
 	/**包装规格*/
 	@Excel(name = "包装规格", width = 15)
     @Schema(description = "包装规格")
+    @ExcelProperty("包装规格")
     private String packagingSpec;
 	/**养护周期(天)*/
 	@Excel(name = "养护周期(天)", width = 15)
     @Schema(description = "养护周期(天)")
+    @ExcelProperty("养护周期(天)")
     private Integer maintenanceCycle;
 	/**保质期(天)*/
 	@Excel(name = "保质期(天)", width = 15)

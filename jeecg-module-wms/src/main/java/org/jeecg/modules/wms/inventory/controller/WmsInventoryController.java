@@ -15,6 +15,7 @@ import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.query.QueryRuleEnum;
 import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.wms.inventory.entity.WmsInventory;
+import org.jeecg.modules.wms.inventory.mapper.WmsInventoryMapper;
 import org.jeecg.modules.wms.inventory.service.IWmsInventoryService;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -52,7 +53,9 @@ import org.apache.shiro.authz.annotation.RequiresPermissions;
 public class WmsInventoryController extends JeecgController<WmsInventory, IWmsInventoryService> {
 	@Autowired
 	private IWmsInventoryService wmsInventoryService;
-	
+
+	@Autowired
+	private WmsInventoryMapper wmsInventoryMapper;
 	/**
 	 * 分页列表查询
 	 *
@@ -71,7 +74,7 @@ public class WmsInventoryController extends JeecgController<WmsInventory, IWmsIn
 								   HttpServletRequest req) {
         QueryWrapper<WmsInventory> queryWrapper = QueryGenerator.initQueryWrapper(wmsInventory, req.getParameterMap());
 		Page<WmsInventory> page = new Page<WmsInventory>(pageNo, pageSize);
-		IPage<WmsInventory> pageList = wmsInventoryService.page(page, queryWrapper);
+		IPage<WmsInventory> pageList = wmsInventoryMapper.queryPageList(page, queryWrapper);
 		return Result.OK(pageList);
 	}
 	
