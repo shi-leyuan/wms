@@ -14,6 +14,8 @@ import org.jeecg.modules.wms.inorder.entity.WmsStockInOrderItems;
 import org.jeecg.modules.wms.inorder.entity.WmsStockInOrders;
 import org.jeecg.modules.wms.inorder.service.IWmsStockInOrderItemsService;
 import org.jeecg.modules.wms.inorder.service.IWmsStockInOrdersService;
+import org.jeecg.modules.wms.inventory.service.impl.WmsInventoryTransByReceiving;
+import org.jeecg.modules.wms.inventory.vo.WmsInventoryTransParam;
 import org.jeecg.modules.wms.wmstask.entity.WmsTasks;
 import org.jeecg.modules.wms.wmstask.entity.WmsTasksRecords;
 import org.jeecg.modules.wms.wmstask.mapper.WmsTasksMapper;
@@ -46,6 +48,9 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
 
     @Autowired
     private IWmsTasksRecordsService wmsTasksRecordsService;
+
+    @Autowired
+    private WmsInventoryTransByReceiving wmsInventoryTransByReceiving;
 
     @Autowired
     private RedisUtil redisUtil;
@@ -152,6 +157,21 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
         stockInOrderItemsService.updateReceivedStatus(stockInOrderItemId);
         //更新入库单中收货总数量，如果所有明细的状态为收货完成则么入库单的状态为收货完成
         stockInOrdersService.updateReceivedStatus(wmsTasks.getStockInOrderId());
+        //存储库存
+        WmsInventoryTransParam inventoryTransParam = new WmsInventoryTransParam();
+        inventoryTransParam.setProductId(wmsTasks.getProductId());//商品ID
+        inventoryTransParam.setExecQuantity(wmsTasksRecords.getExecQuantity());//执行数量
+        inventoryTransParam.setWarehouseId(wmsTasks.getTargetWarehouseId());
+        inventoryTransParam.setTargetLocationCode(wmsTasksRecords.getTargetLocationCode());//目的储位编码
+        inventoryTransParam.setSourceLocationCode(wmsTasks.getSourceLocationCode());
+        inventoryTransParam.setBatchNumber(wmsTasksRecords.getBatchNumber());
+        inventoryTransParam.setExpiryDate(wmsTasksRecords.getExpiryDate());
+        //库存属性为良品则可售
+        inventoryTransParam.setIsSellable(wmsTasksRecords.getInventoryAttribute().equals(WarehouseDictEnum.INVENTORY_ATTRIBUTE_GOOD.getCode()) ? "1" : "0");
+        inventoryTransParam.setTransactionType(WarehouseDictEnum.INVENTORY_RECEIVING.getCode());//库存变更 类型
+        inventoryTransParam.setOperator(wmsTasksRecords.getOperator());
+        inventoryTransParam.setOperationTime(new Date());
+        wmsInventoryTransByReceiving.transfer(inventoryTransParam);
         //todo 如果入库单收货完成则创建上架任务,根据收货记录创建上架任务
     }
 
