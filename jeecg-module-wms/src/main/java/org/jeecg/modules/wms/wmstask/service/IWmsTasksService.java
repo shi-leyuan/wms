@@ -40,4 +40,18 @@ public interface IWmsTasksService extends IService<WmsTasks> {
      * 执行任务
      */
     public WmsTasks execute(WmsTasksRecords wmsTasksRecords);
+
+    /**
+     * 根据入库单创建上架任务
+     *
+     * @param stockInOrderId 入库单ID
+     */
+    void createPutawayTask(String stockInOrderId);
+
+    /**
+     * 执行上架任务
+     *
+     * @param wmsTasksRecords 上架执行记录
+     */
+    void putaway(WmsTasksRecords wmsTasksRecords);
 }
