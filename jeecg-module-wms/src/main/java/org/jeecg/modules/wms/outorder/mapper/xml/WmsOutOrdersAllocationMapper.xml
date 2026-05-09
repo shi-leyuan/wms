@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.jeecg.modules.wms.outorder.mapper.WmsOutOrdersAllocationMapper">
+
+	<delete id="deleteByMainId" parameterType="java.lang.String">
+		DELETE
+		FROM  wms_out_orders_allocation
+		WHERE
+			 order_id = #{mainId} 	</delete>
+
+	<select id="selectByMainId" parameterType="java.lang.String" resultType="org.jeecg.modules.wms.outorder.entity.WmsOutOrdersAllocation">
+		SELECT t.*,p.product_name
+		FROM  wms_out_orders_allocation t left join wms_products p on t.sku_id=p.id
+		WHERE
+			t.order_id = #{mainId} 	</select>
+	<select id="selectAllocationsByOrderIds" resultType="org.jeecg.modules.wms.outorder.entity.WmsOutOrdersAllocation">
+		SELECT t.*,p.product_name
+		FROM  wms_out_orders_allocation t left join wms_products p on t.sku_id=p.id
+		WHERE
+			t.order_id IN
+		<foreach item="item" index="index" collection="orderIds"
+				 open="(" separator="," close=")">
+			#{item}
+		</foreach>
+	</select>
+
+	<select id="selectAllocatedQuantityByWaveId"
+			resultType="org.jeecg.modules.wms.outorder.entity.WmsOutOrdersAllocation"
+			parameterType="java.lang.String">
+
+
+	</select>
+</mapper>

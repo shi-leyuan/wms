@@ -1,5 +1,6 @@
 package org.jeecg.modules.wms.wmstask.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.jeecg.modules.wms.wmstask.entity.WmsTasksRecords;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -11,4 +12,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface IWmsTasksRecordsService extends IService<WmsTasksRecords> {
 
+    IPage<WmsTasksRecords> pageList(WmsTasksRecords wmsTasksRecords,
+                                    Integer pageNo,
+                                    Integer pageSize);
 }

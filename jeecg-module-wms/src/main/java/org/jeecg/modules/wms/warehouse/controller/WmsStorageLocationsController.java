@@ -6,12 +6,14 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.system.query.QueryGenerator;
 import org.jeecg.common.system.query.QueryRuleEnum;
 import org.jeecg.common.util.oConvertUtils;
+import org.jeecg.modules.wms.config.WarehouseDictEnum;
 import org.jeecg.modules.wms.warehouse.entity.WmsStorageLocations;
 import org.jeecg.modules.wms.warehouse.entity.WmsStorageZones;
 import org.jeecg.modules.wms.warehouse.entity.WmsWarehouses;
@@ -258,6 +260,36 @@ public class WmsStorageLocationsController extends JeecgController<WmsStorageLoc
     @RequestMapping(value = "/importExcel", method = RequestMethod.POST)
     public Result<?> importExcel(HttpServletRequest request, HttpServletResponse response) {
         return super.importExcel(request, response, WmsStorageLocations.class);
+    }
+
+    /**
+     * 上架目的储位下拉查询
+     *
+     * @param warehouseId 仓库ID
+     * @param sourceLocationCode 来源储位编码
+     * @return 可上架目的储位
+     */
+    @GetMapping(value = "/putawayTargetOptions")
+    public Result<List<WmsStorageLocations>> putawayTargetOptions(
+            @RequestParam(name = "warehouseId", required = false) String warehouseId,
+            @RequestParam(name = "sourceLocationCode", required = false) String sourceLocationCode) {
+
+        if (warehouseId == null || warehouseId.trim().isEmpty()) {
+            return Result.OK(new ArrayList<>());
+        }
+
+        LambdaQueryWrapper<WmsStorageLocations> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(WmsStorageLocations::getWarehouseId, warehouseId);
+        queryWrapper.eq(WmsStorageLocations::getStatus, WarehouseDictEnum.STATUS_ACTIVE.getCode());
+
+//        if (sourceLocationCode != null && !sourceLocationCode.trim().isEmpty()) {
+//            queryWrapper.ne(WmsStorageLocations::getLocationCode, sourceLocationCode);
+//        }
+
+        queryWrapper.orderByAsc(WmsStorageLocations::getLocationCode);
+
+        List<WmsStorageLocations> list = wmsStorageLocationsService.list(queryWrapper);
+        return Result.OK(list);
     }
 
 }

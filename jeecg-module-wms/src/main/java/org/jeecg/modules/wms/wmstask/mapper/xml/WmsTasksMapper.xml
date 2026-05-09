@@ -3,7 +3,14 @@
 <mapper namespace="org.jeecg.modules.wms.wmstask.mapper.WmsTasksMapper">
     <!--关联查询wms_task-->
     <select id="queryTaskList" parameterType="org.jeecg.modules.wms.wmstask.entity.WmsTasks" resultType="org.jeecg.modules.wms.wmstask.entity.WmsTasks">
-        select a.*,ww.warehouse_name ,b.product_name,wco.owner_name,wsio.order_number stock_in_order_number
+        select
+        a.*,
+        a.target_warehouse_id as targetWarehouseId,
+        a.source_location_code as sourceLocationCode,
+        ww.warehouse_name as warehouseName,
+        b.product_name as productName,
+        wco.owner_name as ownerName,
+        wsio.order_number as stockInOrderNumber
         from wms_tasks a
         left join wms_warehouses ww on a.target_warehouse_id=ww.id
         left join wms_products b on a.product_id = b.id

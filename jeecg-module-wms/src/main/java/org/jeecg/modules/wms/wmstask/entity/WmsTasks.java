@@ -178,4 +178,10 @@ public class WmsTasks implements Serializable {
     @Schema(description = "仓库名称")
     @TableField(exist = false)
     private java.lang.String warehouseName;
+    /**
+     * 待执行数量 / 待上架数量
+     */
+    @Schema(description = "待执行数量")
+    @TableField(exist = false)
+    private Integer remainingQuantity;
 }

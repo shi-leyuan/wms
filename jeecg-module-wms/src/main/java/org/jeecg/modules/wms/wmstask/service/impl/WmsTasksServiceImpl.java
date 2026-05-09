@@ -139,6 +139,14 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
     public IPage<WmsTasks> list(WmsTasks wmsTasks, Integer pageNo, Integer pageSize) {
         Page<WmsTasks> page = PageHelper.startPage(pageNo, pageSize);
         List<WmsTasks> list = baseMapper.queryTaskList(wmsTasks);
+
+        for (WmsTasks task : list) {
+            Integer quantity = ObjectUtils.defaultIfNull(task.getQuantity(), 0);
+            Integer completedQuantity = ObjectUtils.defaultIfNull(task.getCompletedQuantity(), 0);
+            int remainingQuantity = quantity - completedQuantity;
+            task.setRemainingQuantity(Math.max(remainingQuantity, 0));
+        }
+
         PageDTO<WmsTasks> wmsTasksPageDTO = new PageDTO<>();
         wmsTasksPageDTO.setRecords(list);
         wmsTasksPageDTO.setTotal(page.getTotal());
