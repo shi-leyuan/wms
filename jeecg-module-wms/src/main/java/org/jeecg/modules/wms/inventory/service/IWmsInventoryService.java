@@ -2,6 +2,9 @@ package org.jeecg.modules.wms.inventory.service;
 
 import org.jeecg.modules.wms.inventory.entity.WmsInventory;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.jeecg.modules.wms.outorder.entity.WmsOutOrdersItems;
+
+import java.util.List;
 
 /**
  * @Description: 库存表
@@ -20,4 +23,11 @@ public interface IWmsInventoryService extends IService<WmsInventory> {
      */
     public WmsInventory getInventoryByUniqueKey(String productId, String locationCode, String batchNumber);
 
+
+    /**
+     * 查询可用库存
+     * @param warehouseId 仓库id
+     * @param  skuItem sku信息
+     */
+    public List<WmsInventory> selectAvailableBySku(String warehouseId, WmsOutOrdersItems skuItem);
 }

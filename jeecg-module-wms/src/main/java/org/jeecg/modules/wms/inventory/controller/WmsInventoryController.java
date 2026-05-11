@@ -69,11 +69,30 @@ public class WmsInventoryController extends JeecgController<WmsInventory, IWmsIn
 	@Operation(summary="库存表-分页列表查询")
 	@GetMapping(value = "/list")
 	public Result<IPage<WmsInventory>> queryPageList(WmsInventory wmsInventory,
-								   @RequestParam(name="pageNo", defaultValue="1") Integer pageNo,
-								   @RequestParam(name="pageSize", defaultValue="10") Integer pageSize,
-								   HttpServletRequest req) {
-        QueryWrapper<WmsInventory> queryWrapper = QueryGenerator.initQueryWrapper(wmsInventory, req.getParameterMap());
-		Page<WmsInventory> page = new Page<WmsInventory>(pageNo, pageSize);
+													 @RequestParam(name="pageNo", defaultValue="1") Integer pageNo,
+													 @RequestParam(name="pageSize", defaultValue="10") Integer pageSize,
+													 HttpServletRequest req) {
+
+		QueryWrapper<WmsInventory> queryWrapper = QueryGenerator.initQueryWrapper(wmsInventory, req.getParameterMap());
+
+		// 关联表查询条件：货主编码、货主名称、商品编码
+		String ownerCode = req.getParameter("ownerCode");
+		String ownerName = req.getParameter("ownerName");
+		String productCode = req.getParameter("productCode");
+
+		if (ownerCode != null && !ownerCode.trim().isEmpty()) {
+			queryWrapper.like("ow.owner_code", ownerCode.trim());
+		}
+
+		if (ownerName != null && !ownerName.trim().isEmpty()) {
+			queryWrapper.like("ow.owner_name", ownerName.trim());
+		}
+
+		if (productCode != null && !productCode.trim().isEmpty()) {
+			queryWrapper.like("p.product_code", productCode.trim());
+		}
+
+		Page<WmsInventory> page = new Page<>(pageNo, pageSize);
 		IPage<WmsInventory> pageList = wmsInventoryMapper.queryPageList(page, queryWrapper);
 		return Result.OK(pageList);
 	}
