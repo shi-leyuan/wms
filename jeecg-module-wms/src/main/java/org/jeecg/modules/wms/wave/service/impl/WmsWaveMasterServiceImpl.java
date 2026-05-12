@@ -16,6 +16,8 @@ import org.jeecg.modules.wms.wave.entity.WmsWaveSkuSummary;
 import org.jeecg.modules.wms.wave.mapper.WmsWaveMasterMapper;
 import org.jeecg.modules.wms.wave.service.IWmsWaveMasterService;
 import org.jeecg.modules.wms.wave.service.IWmsWaveSkuSummaryService;
+import org.jeecg.modules.wms.wave.strategy.IWaveStrategy;
+import org.jeecg.modules.wms.wave.strategy.WaveCreateClient;
 import org.springframework.stereotype.Service;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +46,9 @@ public class WmsWaveMasterServiceImpl extends ServiceImpl<WmsWaveMasterMapper, W
 	@Autowired
 	private IWmsWaveSkuSummaryService iWmsWaveSkuSummaryService;
 
+	//波次处理策略
+	@Autowired
+	private  List<IWaveStrategy> strategies;
 
 	@Override
 	public IPage<WmsWaveMaster> queryList(WmsWaveMaster wmsWaveMaster, Integer pageNo, Integer pageSize) {
@@ -231,9 +236,13 @@ public class WmsWaveMasterServiceImpl extends ServiceImpl<WmsWaveMasterMapper, W
 				.stream()
 				.collect(Collectors.groupingBy(WmsOutOrdersAllocation::getOrderId));
 
-		// 3. todo 使用责任链处理波次创建
+		// 3. 使用责任链处理波次创建
+		WaveCreateClient waveCreateClient = new WaveCreateClient(strategies,strategyCodes);
+		waveCreateClient.process(unassignedOrders, allocationsMap);
 
 	}
+
+
 //	public void updatePickStatus(String waveId){
 //		WmsWaveMaster wave = getById(waveId);
 //		if (wave == null) {
