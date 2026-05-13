@@ -635,7 +635,7 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
      * 生成任务编号
      * 规则: TSK+年月日+5位序号，序号使用redis自增序号实现
      */
-    private String generateTaskCode() {
+    public String generateTaskCode() {
         String time = DateUtils.now().substring(0, 10).replace("-", "");
         String key = "tsk_number" + time;
         long incr = redisUtil.incr(key, 1);

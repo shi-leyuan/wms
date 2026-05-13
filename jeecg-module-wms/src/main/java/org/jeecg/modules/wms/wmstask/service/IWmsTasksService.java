@@ -54,4 +54,11 @@ public interface IWmsTasksService extends IService<WmsTasks> {
      * @param wmsTasksRecords 上架执行记录
      */
     void putaway(WmsTasksRecords wmsTasksRecords);
+
+    /**
+     * 生成任务编号
+     * 规则: TSK+年月日+5位序号，序号使用redis自增序号实现
+     */
+    public String generateTaskCode();
+
 }

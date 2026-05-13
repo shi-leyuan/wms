@@ -116,6 +116,117 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void createPickTask(String waveId) {
+        //更新波次状态为拣货中
+        WmsWaveMaster wmsWaveMaster = wmsWaveMasterService.getById(waveId);
+        //将波次由创建状态改为拣货中
+        LambdaUpdateWrapper<WmsWaveMaster> set = new LambdaUpdateWrapper<WmsWaveMaster>()
+                .eq(WmsWaveMaster::getId, waveId)
+                .eq(WmsWaveMaster::getStatus, WarehouseDictEnum.WAVE_CREATED.getCode())
+                .set(WmsWaveMaster::getStatus, WarehouseDictEnum.WAVE_PICKING.getCode());
+        boolean update = wmsWaveMasterService.update(null, set);
+        if (!update) {
+            throw new JeecgBootException("更新波次状态为拣货中失败");
+        }
+        //根据波次id统计出库单的商品分配数量，分页查询
+        IPage<WmsOutOrdersAllocation> page = wmsOutOrdersAllocationService.selectAllocatedQuantityByWaveId(waveId, 1, 100);
+        if (page.getRecords().isEmpty()) {
+            throw  new JeecgBootException("没有找到波次下的库存分配明细");
+        }
+
+        int n=1;
+        while (true) {
+
+            //获取记录
+            List<WmsOutOrdersAllocation> records = page.getRecords();
+            //将记录转换成波次拣货明细
+            List<WmsWaveSkuSummary> collect = records.stream().map(record -> {
+                WmsWaveSkuSummary wmsWaveSkuSummary = new WmsWaveSkuSummary();
+                wmsWaveSkuSummary.setWaveId(waveId);
+                wmsWaveSkuSummary.setSkuId(record.getSkuId());
+                wmsWaveSkuSummary.setOwnerId(record.getOwnerId());
+                wmsWaveSkuSummary.setProductBarcode(record.getProductBarcode());
+                wmsWaveSkuSummary.setLocationCode(record.getLocationCode());
+                wmsWaveSkuSummary.setBatchNumber(record.getBatchNumber());
+                wmsWaveSkuSummary.setAllocatedQuantity(record.getAllocatedQuantity());
+                wmsWaveSkuSummary.setPickedQuantity(0);
+                //默认状态 拣货中
+                wmsWaveSkuSummary.setStatus(WarehouseDictEnum.WAVESKU_PICKING.getCode());
+                return wmsWaveSkuSummary;
+            }).collect(Collectors.toList());
+
+            //批量插入波次拣货明细表
+            boolean b = wmsWaveSkuSummaryService.saveBatch(collect);
+            if (!b) {
+                throw new JeecgBootException("批量插入波次拣货明细表失败");
+            }
+
+            //根据拣货明细向任务表插入分拣任务
+            List<WmsTasks> wmsTaskList = collect.stream().map(wmsWaveSkuSummary -> {
+                //创建收货任务
+                WmsTasks wmsTasks = new WmsTasks();
+                //任务类型,拣货任务
+                wmsTasks.setTaskType(WarehouseDictEnum.TASK_TYPE_PICKING.getCode());
+                //任务状态，已创建
+                wmsTasks.setTaskStatus(WarehouseDictEnum.TASK_STATUS_CREATED.getCode());
+                //任务创建时间
+                wmsTasks.setCreateTime(new Date());
+                //任务号
+                wmsTasks.setTaskNumber(wmsTasksService.generateTaskCode());
+                //波次id
+                wmsTasks.setWaveOrderId(waveId);
+                //商品id
+                wmsTasks.setProductId(wmsWaveSkuSummary.getSkuId());
+                //商品待拣货数量
+                wmsTasks.setQuantity(wmsWaveSkuSummary.getAllocatedQuantity());
+                //来源储位编码
+                wmsTasks.setSourceLocationCode(wmsWaveSkuSummary.getLocationCode());
+                //来源仓库
+                wmsTasks.setSourceWarehouseId(wmsWaveMaster.getWarehouseId());
+                //目的仓库
+                wmsTasks.setTargetWarehouseId(wmsWaveMaster.getWarehouseId());
+                //商品批次号
+                wmsTasks.setBatchNumber(wmsWaveSkuSummary.getBatchNumber());
+                //目的储位编码
+                wmsTasks.setTargetLocationCode("");
+                //波次拣货明细id
+                wmsTasks.setWaveSkuSummaryId(wmsWaveSkuSummary.getId());
+                //完成数量为0
+                wmsTasks.setCompletedQuantity(0);
+                return wmsTasks;
+            }).collect(Collectors.toList());
+            //批量插入任务表
+            boolean b1 = wmsTasksService.saveBatch(wmsTaskList);
+            if (!b1) {
+                throw new JeecgBootException("批量插入任务表失败");
+            }
+            //循环查询,每次查询100条数据,直到记录数数为0
+            page = wmsOutOrdersAllocationService.selectAllocatedQuantityByWaveId(waveId, ++n, 100);
+            if (page.getRecords().isEmpty()) {
+                break;
+            }
+
+        }
+        //更新该波次下出库单状态为拣货中
+        LambdaUpdateWrapper<WmsOutOrders> updateWrapper = new LambdaUpdateWrapper<WmsOutOrders>()
+                .eq(WmsOutOrders::getWaveId, waveId)
+                .eq(WmsOutOrders::getStatus, WarehouseDictEnum.OUTBOUND_ALLOCATED.getCode())
+                .set(WmsOutOrders::getStatus, WarehouseDictEnum.OUTBOUND_PICKING.getCode());
+        boolean update2 = wmsOutOrdersService.update(null, updateWrapper);
+        if (!update2) {
+            throw new JeecgBootException("更新该波次下出库单状态为拣货中失败");
+        }
+        //根据波次id查询出库单id
+        List<WmsOutOrders> wmsOutOrders = wmsOutOrdersService.selectByWaveId(waveId);
+        List<String> orderIds = wmsOutOrders.stream().map(WmsOutOrders::getId).collect(Collectors.toList());
+        //更新该波次下出库单明细状态为拣货中
+        LambdaUpdateWrapper<WmsOutOrdersItems> updateWrapper2 = new LambdaUpdateWrapper<WmsOutOrdersItems>()
+                .in(WmsOutOrdersItems::getOrderId, orderIds)
+                .eq(WmsOutOrdersItems::getStatus, WarehouseDictEnum.OUTBOUND_DETAIL_ALLOCATED.getCode())
+                .set(WmsOutOrdersItems::getStatus, WarehouseDictEnum.OUTBOUND_PICKING.getCode());
+        boolean update1 = wmsOutOrdersItemsService.update(null, updateWrapper2);
+        if (!update1) {
+            throw new JeecgBootException("更新该波次下出库单明细状态为拣货中失败");
+        }
 
     }
     /**

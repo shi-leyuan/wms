@@ -39,4 +39,5 @@ public interface WmsOutOrdersAllocationMapper extends BaseMapper<WmsOutOrdersAll
 	 */
 	public List<WmsOutOrdersAllocation> selectAllocatedQuantityByWaveId(String waveId);
 
+
 }
