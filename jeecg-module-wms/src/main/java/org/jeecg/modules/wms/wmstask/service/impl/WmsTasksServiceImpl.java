@@ -7,7 +7,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.PageDTO;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.shiro.SecurityUtils;
 import org.jeecg.common.exception.JeecgBootException;
+import org.jeecg.common.system.vo.LoginUser;
 import org.jeecg.common.util.DateUtils;
 import org.jeecg.common.util.RedisUtil;
 import org.jeecg.modules.wms.config.WarehouseDictEnum;
@@ -229,7 +231,16 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
         wmsTasksRecords.setTaskNumber(wmsTasks.getTaskNumber());//任务编码
         wmsTasksRecords.setTaskType(wmsTasks.getTaskType()); //任务类型
         wmsTasksRecords.setOperationTime(new Date());//执行时间
-        wmsTasksRecords.setOperator(wmsTasks.getOperator());//执行人
+        // 执行人：优先使用前端/Controller传入的执行人；没有则使用当前登录用户；再没有才使用任务上的执行人
+        if (wmsTasksRecords.getOperator() == null || wmsTasksRecords.getOperator().trim().isEmpty()) {
+            Object principal = SecurityUtils.getSubject().getPrincipal();
+            if (principal instanceof LoginUser) {
+                LoginUser loginUser = (LoginUser) principal;
+                wmsTasksRecords.setOperator(loginUser.getId());
+            } else {
+                wmsTasksRecords.setOperator(wmsTasks.getOperator());
+            }
+        }
         //添加执行任务记录
         boolean save = wmsTasksRecordsService.save(wmsTasksRecords);
         if (!save) {
@@ -248,7 +259,9 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
         wmsTasks = getById(taskId);
         //完成数量
         completedQuantity = wmsTasks.getCompletedQuantity();
-        if (completedQuantity == wmsTasks.getQuantity()) {
+        if (completedQuantity != null
+                && wmsTasks.getQuantity() != null
+                && completedQuantity.intValue() == wmsTasks.getQuantity().intValue()) {
             wmsTasks.setTaskStatus(WarehouseDictEnum.TASK_STATUS_COMPLETED.getCode());
             boolean b = updateById(wmsTasks);
             if (!b) {
@@ -646,4 +659,5 @@ public class WmsTasksServiceImpl extends ServiceImpl<WmsTasksMapper, WmsTasks> i
         String incrStr = String.format("%05d", incr);
         return "TSK" + time + incrStr;
     }
+
 }

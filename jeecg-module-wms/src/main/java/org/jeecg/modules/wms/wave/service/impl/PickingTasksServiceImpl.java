@@ -229,16 +229,7 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
         }
 
     }
-    /**
-     * 完成拣货
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void completePickTask(List<String> waveIds){
-        for (String waveId : waveIds) {
-            completePickTask(waveId);
-        }
-    }
+
     /**
      * 完成拣货
      */
@@ -309,23 +300,33 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void pick(WmsTasksRecords wmsTasksRecords) {
-        //执行任务
+        // 1. 执行任务：保存拣货记录，更新任务完成数量和任务状态
         WmsTasks wmsTasks = wmsTasksService.execute(wmsTasksRecords);
-        //校验缺货数量+拣货数量不能大于计划数量
-        checkPickedQuantity(wmsTasksRecords.getTaskId());
-        //执行数量
-        Integer execQuantity = wmsTasksRecords.getExecQuantity();
 
-        //计划数量
+        // 2. 校验缺货数量 + 已拣货数量不能大于计划数量
+        checkPickedQuantity(wmsTasksRecords.getTaskId());
+
+        Integer execQuantity = wmsTasksRecords.getExecQuantity();
         Integer quantity = wmsTasks.getQuantity();
 
-        //波次拣货明细id
+        // 3. 如果是波次拣货任务，更新波次拣货明细
         String waveSkuSummaryId = wmsTasks.getWaveSkuSummaryId();
-        //根据波次拣货明细id更新波次拣货数量
-        updatePickedQuantityByWaveSkuSummaryId(waveSkuSummaryId, quantity,execQuantity);
-        //更新波次主表的拣货状态，如果波次下拣货明细的状态为已拣货，则更新波次主表的拣货状态为拣货完成
-        wmsWaveMasterService.updatePickStatus(wmsTasks.getWaveOrderId());
-        //向库存表中添加库存记录
+        if (waveSkuSummaryId != null && !waveSkuSummaryId.trim().isEmpty()) {
+            updatePickedQuantityByWaveSkuSummaryId(waveSkuSummaryId, quantity, execQuantity);
+        }
+
+        // 4. 重新查询最新任务状态
+        WmsTasks latestTask = wmsTasksService.getById(wmsTasks.getId());
+        if (latestTask == null) {
+            throw new JeecgBootException("拣货任务不存在");
+        }
+
+        // 5. 如果任务已经完成，同步更新出库单明细、出库单主表、波次状态
+        if (WarehouseDictEnum.TASK_STATUS_COMPLETED.getCode().equals(latestTask.getTaskStatus())) {
+            updateAfterPickTaskCompleted(latestTask);
+        }
+
+        // 6. 拣货库存转移
         WmsInventoryTransParam inventoryTransParam = new WmsInventoryTransParam();
         inventoryTransParam.setProductId(wmsTasksRecords.getProductId());
         inventoryTransParam.setExecQuantity(wmsTasksRecords.getExecQuantity());
@@ -335,9 +336,106 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
         inventoryTransParam.setBatchNumber(wmsTasksRecords.getBatchNumber());
         inventoryTransParam.setExpiryDate(wmsTasksRecords.getExpiryDate());
         inventoryTransParam.setTransactionType(WarehouseDictEnum.INVENTORY_PICKING.getCode());
-        //上架时间
         inventoryTransParam.setOperationTime(wmsTasksRecords.getOperationTime());
+
         inventoryTransByPick.transfer(inventoryTransParam);
+    }
+
+    /**
+     * 拣货任务完成后，同步更新出库单明细、出库单主表、波次状态
+     */
+    private void updateAfterPickTaskCompleted(WmsTasks task) {
+        // 先根据当前拣货任务更新出库单明细
+        updateOutOrderItemsPickedByTask(task);
+
+        // 普通出库单任务：更新出库单主表状态
+        if (task.getOutOrderId() != null && !task.getOutOrderId().trim().isEmpty()) {
+            wmsOutOrdersService.updatePickStatus(Collections.singletonList(task.getOutOrderId()));
+        }
+
+        // 波次任务：更新波次下出库单主表状态
+        if (task.getWaveOrderId() != null && !task.getWaveOrderId().trim().isEmpty()) {
+            List<WmsOutOrders> outOrders = wmsOutOrdersService.selectByWaveId(task.getWaveOrderId());
+            if (outOrders != null && !outOrders.isEmpty()) {
+                List<String> orderIds = outOrders.stream()
+                        .map(WmsOutOrders::getId)
+                        .collect(Collectors.toList());
+
+                wmsOutOrdersService.updatePickStatus(orderIds);
+            }
+
+            wmsWaveMasterService.updatePickStatus(task.getWaveOrderId());
+        }
+    }
+
+    /**
+     * 根据已完成的拣货任务，同步更新出库单明细的已拣数量和状态
+     */
+    private void updateOutOrderItemsPickedByTask(WmsTasks task) {
+        LambdaQueryWrapper<WmsOutOrdersAllocation> queryWrapper = new LambdaQueryWrapper<>();
+
+        if (task.getOutOrderId() != null && !task.getOutOrderId().trim().isEmpty()) {
+            queryWrapper.eq(WmsOutOrdersAllocation::getOrderId, task.getOutOrderId());
+        }
+
+
+        queryWrapper.eq(WmsOutOrdersAllocation::getSkuId, task.getProductId())
+                .eq(WmsOutOrdersAllocation::getLocationCode, task.getSourceLocationCode());
+
+        if (task.getBatchNumber() != null && !task.getBatchNumber().trim().isEmpty()) {
+            queryWrapper.eq(WmsOutOrdersAllocation::getBatchNumber, task.getBatchNumber());
+        }
+
+        List<WmsOutOrdersAllocation> allocationList = wmsOutOrdersAllocationService.list(queryWrapper);
+
+        if (allocationList == null || allocationList.isEmpty()) {
+            throw new JeecgBootException("未找到当前拣货任务对应的库存分配明细，无法更新出库单明细状态");
+        }
+
+        for (WmsOutOrdersAllocation allocation : allocationList) {
+            WmsOutOrdersItems item = wmsOutOrdersItemsService.getById(allocation.getOrderItemId());
+            if (item == null) {
+                throw new JeecgBootException("出库单明细不存在");
+            }
+
+            Integer oldPickedQuantity = item.getPickedQuantity() == null ? 0 : item.getPickedQuantity();
+            Integer allocatedQuantity = allocation.getAllocatedQuantity() == null ? 0 : allocation.getAllocatedQuantity();
+            Integer expectedQuantity = item.getExpectedQuantity() == null ? 0 : item.getExpectedQuantity();
+
+            int newPickedQuantity = oldPickedQuantity + allocatedQuantity;
+            item.setPickedQuantity(newPickedQuantity);
+
+            if (newPickedQuantity >= expectedQuantity) {
+                item.setStatus(WarehouseDictEnum.OUTBOUND_DETAIL_PICKED.getCode());
+            }
+
+            boolean update = wmsOutOrdersItemsService.updateById(item);
+            if (!update) {
+                throw new JeecgBootException("更新出库单明细拣货状态失败");
+            }
+        }
+    }
+
+    /**
+     * 更新单个出库单的拣货状态
+     */
+    private void updateOutOrderPickStatus(String outOrderId) {
+        if (outOrderId == null || outOrderId.trim().isEmpty()) {
+            return;
+        }
+
+        List<WmsOutOrdersItems> items = wmsOutOrdersItemsService.selectByMainId(outOrderId);
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        boolean allPicked = items.stream().allMatch(item ->
+                WarehouseDictEnum.OUTBOUND_DETAIL_PICKED.getCode().equals(item.getStatus())
+        );
+
+        if (allPicked) {
+            wmsOutOrdersService.updatePickStatus(Collections.singletonList(outOrderId));
+        }
     }
     /**
      * 根据波次拣货明细id更新拣货数量

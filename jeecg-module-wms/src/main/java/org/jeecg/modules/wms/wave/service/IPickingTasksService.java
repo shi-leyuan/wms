@@ -25,7 +25,6 @@ public interface IPickingTasksService  {
     /**
      * 完成拣货
      */
-    void completePickTask(List<String> waveIds);
     void completePickTask(String waveIds);
     /**
      * 拣货校验：已拣货数量+缺货数量不能大于计划数量

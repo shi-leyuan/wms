@@ -2,6 +2,7 @@ package org.jeecg.modules.wms.goods.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.common.util.RedisUtil;
 import org.jeecg.modules.wms.goods.entity.*;
 import org.jeecg.modules.wms.goods.excel.WmsProductsImport;
@@ -88,7 +89,7 @@ public class WmsProductsServiceImpl extends ServiceImpl<WmsProductsMapper, WmsPr
         //如果商品编码有变化
         if(!wmsProductsOld.getProductCode().equals(wmsProducts.getProductCode())){
             //校验商品编码在商品表中的 uniqueness
-            if(!checkProductCode(wmsProducts)){
+            if(checkProductCode(wmsProducts)){
                 throw new RuntimeException("商品编码在商品表中已存在");
             }
         }
@@ -168,24 +169,49 @@ public class WmsProductsServiceImpl extends ServiceImpl<WmsProductsMapper, WmsPr
 
 
     /**
-     * 生成商品条码全局唯一
-     * @return
+     * 生成商品条码，全局唯一
+     *
+     * 编码规则：6位货主编码 + 商品类别编码 + 6位序号
      */
     public String generateProductBarcode(WmsProducts wmsProducts) {
-        //编码规则：6位货主编码+4位商品类别+6位序号
-        //货主编码
-        String ownerCode = wmsCargoOwnersService.getById(wmsProducts.getOwnerId()).getOwnerCode();
-        //商品类型编码
-        String categoryCode = wmsProductCategoriesService.getById(wmsProducts.getCategoryId()).getCategoryCode();
-
-        String code = null;
-        try {
-            code = String.format("%06d", redisUtil.incr("WMS_PRO_BARCODE", 1));
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (wmsProducts == null) {
+            throw new JeecgBootException("商品信息不能为空");
         }
-        code = ownerCode + categoryCode + code;
-        return code;
+
+        String ownerId = wmsProducts.getOwnerId();
+        if (ownerId == null || ownerId.trim().isEmpty()) {
+            throw new JeecgBootException("货主不能为空");
+        }
+
+        WmsCargoOwners owner = wmsCargoOwnersService.getById(ownerId);
+        if (owner == null) {
+            throw new JeecgBootException("货主不存在，请重新选择货主");
+        }
+
+        String ownerCode = owner.getOwnerCode();
+        if (ownerCode == null || ownerCode.trim().isEmpty()) {
+            throw new JeecgBootException("货主编码为空，无法生成商品条码");
+        }
+
+        String categoryId = wmsProducts.getCategoryId();
+        if (categoryId == null || categoryId.trim().isEmpty()) {
+            throw new JeecgBootException("商品分类不能为空");
+        }
+
+        WmsProductCategories category = wmsProductCategoriesService.getById(categoryId);
+        if (category == null) {
+            throw new JeecgBootException("商品分类不存在，请重新选择商品分类");
+        }
+
+        String categoryCode = category.getCategoryCode();
+        if (categoryCode == null || categoryCode.trim().isEmpty()) {
+            throw new JeecgBootException("商品类别编码为空，无法生成商品条码");
+        }
+
+        long incr = redisUtil.incr("WMS_PRO_BARCODE", 1);
+        String serialCode = String.format("%06d", incr);
+
+        return ownerCode + categoryCode + serialCode;
     }
 
 

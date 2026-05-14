@@ -28,34 +28,45 @@
 			and wave_id IS NULL
 			and status = 'ALLOCATED'
 	</select>
-    <select id="queryList" resultType="org.jeecg.modules.wms.outorder.entity.WmsOutOrders"
-            parameterType="org.jeecg.modules.wms.outorder.entity.WmsOutOrders">
+	<select id="queryList" resultType="org.jeecg.modules.wms.outorder.entity.WmsOutOrders"
+			parameterType="org.jeecg.modules.wms.outorder.entity.WmsOutOrders">
 
-		select wco.owner_name, wwm.wave_no, t.*
-		from wms_out_orders t
-				 left join wms_cargo_owners wco on wco.id = t.owner_id
-				 left join wms_wave_master wwm on t.wave_id = wwm.id
-		 where 1=1
-		 <if test="orderNo != null and orderNo != ''">
-				and t.order_no=#{orderNo}
-		 </if>
-		 <!--状态-->
-		 <if test="status != null and status != ''">
-			and t.status= #{status}
-		 </if>
-		<!--波次号-->
-		 <if test="waveNo != null and waveNo != ''">
-			and wwm.wave_no= #{waveNo}
-		 </if>
-		<!--波次id-->
-		 <if test="waveId != null and waveId != ''">
-			and t.wave_id= #{waveId}
-		 </if>
-		<!--是否创建运单-->
-		 <if test="createdWaybill != null and createdWaybill != ''">
-			and t.created_waybill= #{createdWaybill}
-		 </if>
-		order by t.create_time desc
+		SELECT
+		wco.owner_name AS ownerName,
+		wwm.wave_no AS waveNo,
+		wh.warehouse_name AS warehouseName,
+		t.*
+		FROM wms_out_orders t
+		LEFT JOIN wms_cargo_owners wco ON wco.id = t.owner_id
+		LEFT JOIN wms_wave_master wwm ON t.wave_id = wwm.id
+		LEFT JOIN wms_warehouses wh ON wh.id = t.warehouse_id
+		WHERE 1 = 1
+
+		<if test="orderNo != null and orderNo != ''">
+			AND t.order_no = #{orderNo}
+		</if>
+
+		<!-- 状态 -->
+		<if test="status != null and status != ''">
+			AND t.status = #{status}
+		</if>
+
+		<!-- 波次号 -->
+		<if test="waveNo != null and waveNo != ''">
+			AND wwm.wave_no = #{waveNo}
+		</if>
+
+		<!-- 波次id -->
+		<if test="waveId != null and waveId != ''">
+			AND t.wave_id = #{waveId}
+		</if>
+
+		<!-- 是否创建运单 -->
+		<if test="createdWaybill != null and createdWaybill != ''">
+			AND t.created_waybill = #{createdWaybill}
+		</if>
+
+		ORDER BY t.create_time DESC
 	</select>
 
 

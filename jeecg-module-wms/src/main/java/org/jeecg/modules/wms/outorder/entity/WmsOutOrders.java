@@ -188,5 +188,10 @@ public class WmsOutOrders implements Serializable {
     //skuId
     @TableField(exist = false)
     private String skuId;
+    /**
+     * 仓库名称
+     */
+    @TableField(exist = false)
+    private String warehouseName;
 
 }
