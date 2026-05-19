@@ -1,6 +1,8 @@
 package org.jeecg.modules.wms.shipment.strategy;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ObjectUtil;
+import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.modules.wms.config.WarehouseDictEnum;
 import org.jeecg.modules.wms.goods.service.IWmsProductsService;
 import org.jeecg.modules.wms.outorder.entity.WmsOutOrders;
@@ -17,83 +19,68 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * @author Mr.M
- * @version 1.0
- * @description 按重量拆分包裹策略
- * @date 2025/6/18 15:55
- */
 @Component
 @Order(300)
 public class SplitByWeightShipmentStrategy extends AbstractShipmentStrategy {
 
-    private IWmsShipmentService shipmentService;
-    private IWmsProductsService productsService;
-
     @Autowired
     public SplitByWeightShipmentStrategy(IWmsShipmentService shipmentService, IWmsProductsService productsService) {
-        super(shipmentService,productsService);
-        this.shipmentService = shipmentService;
-        this.productsService = productsService;
+        super(shipmentService, productsService);
     }
 
-    // 最大重量20kg
     private static final double MAX_WEIGHT = 20.0;
 
     @Override
-    public List<ShipmentGenerationResult> generateShipments(WmsOutOrders order,
-                                                            List<WmsOutOrdersItems> items) {
-        // 按重量拆分后的包裹信息
+    public List<ShipmentGenerationResult> generateShipments(WmsOutOrders order, List<WmsOutOrdersItems> items) {
         List<ShipmentGenerationResult> results = new ArrayList<>();
-        // 当前批次
+
         List<WmsOutOrdersItems> currentBatch = new ArrayList<>();
-        // 当前批次总重量
-        double currentWeight = 0;
-        // 批次号
+        double currentWeight = 0D;
         int batchNumber = 1;
 
         for (WmsOutOrdersItems item : items) {
-            // 获取商品拣货数量
-            Integer pickedQuantity = item.getPickedQuantity();
-            // 获取商品已打包数量
-            Integer packedQuantity = item.getPackedQuantity();
-            //剩余打包数量
-            int surplusQuantity = pickedQuantity- ObjectUtil.defaultIfNull(packedQuantity,0);
-            if(surplusQuantity<=0){
+            int pickedQuantity = ObjectUtil.defaultIfNull(item.getPickedQuantity(), 0);
+            int packedQuantity = ObjectUtil.defaultIfNull(item.getPackedQuantity(), 0);
+            int surplusQuantity = pickedQuantity - packedQuantity;
+
+            if (surplusQuantity <= 0) {
                 continue;
             }
-            // 获取商品单位重量
+
             double unitWeight = getItemWeight(item.getSkuId());
-            // 商品总重量
+
+            // 这里必须拦截，否则 splitSingleItem 会 maxQuantity = 0，进入死循环
+            if (unitWeight > MAX_WEIGHT) {
+                throw new JeecgBootException("商品单件净重超过最大包裹重量，无法按重量拆包，商品ID：" + item.getSkuId());
+            }
+
+            WmsOutOrdersItems packItem = copyItemWithQuantity(item, surplusQuantity);
+            packItem.setPackedQuantity(0);
+
             double totalItemWeight = unitWeight * surplusQuantity;
 
-            // 如果单个商品总重量超过最大限制，需要拆分
             if (totalItemWeight > MAX_WEIGHT) {
-                // 先处理当前批次
                 if (!currentBatch.isEmpty()) {
                     results.add(createBatchResult(order, currentBatch, batchNumber++));
                     currentBatch = new ArrayList<>();
-                    currentWeight = 0;
+                    currentWeight = 0D;
                 }
 
-                // 拆分该商品到多个包裹
-                results.addAll(splitSingleItem(order, item, unitWeight, batchNumber));
-                batchNumber += Math.ceil(totalItemWeight / MAX_WEIGHT);
+                List<ShipmentGenerationResult> splitResults = splitSingleItem(order, packItem, unitWeight, batchNumber);
+                results.addAll(splitResults);
+                batchNumber += splitResults.size();
             } else {
-                // 如果加入当前商品会超重，先完成当前批次
                 if (currentWeight + totalItemWeight > MAX_WEIGHT && !currentBatch.isEmpty()) {
                     results.add(createBatchResult(order, currentBatch, batchNumber++));
                     currentBatch = new ArrayList<>();
-                    currentWeight = 0;
+                    currentWeight = 0D;
                 }
 
-                // 添加商品到当前批次
-                currentBatch.add(item);
+                currentBatch.add(packItem);
                 currentWeight += totalItemWeight;
             }
         }
 
-        // 处理最后一批
         if (!currentBatch.isEmpty()) {
             results.add(createBatchResult(order, currentBatch, batchNumber));
         }
@@ -101,48 +88,38 @@ public class SplitByWeightShipmentStrategy extends AbstractShipmentStrategy {
         return results;
     }
 
-    /**
-     * 拆分单个商品到多个包裹
-     * @param order 出库单
-     * @param item 需要拆分的商品项
-     * @param unitWeight 商品单位重量
-     * @param startBatchNumber 起始批次号
-     * @return 拆分后的包裹列表
-     */
     private List<ShipmentGenerationResult> splitSingleItem(WmsOutOrders order,
                                                            WmsOutOrdersItems item,
                                                            double unitWeight,
                                                            int startBatchNumber) {
         List<ShipmentGenerationResult> results = new ArrayList<>();
-        //该商品总的拣货数量
-        int remainingQuantity = item.getPickedQuantity();
+
+        int remainingQuantity = ObjectUtil.defaultIfNull(item.getPickedQuantity(), 0);
         int batchNum = startBatchNumber;
 
+        int maxQuantity = (int) Math.floor(MAX_WEIGHT / unitWeight);
+        if (maxQuantity <= 0) {
+            throw new JeecgBootException("商品单件重量超过最大包裹重量，无法生成包裹，商品ID：" + item.getSkuId());
+        }
+
         while (remainingQuantity > 0) {
-            // 计算当前包裹能装的最大数量
-            int maxQuantity = (int) Math.floor(MAX_WEIGHT / unitWeight);
             int quantityInBatch = Math.min(maxQuantity, remainingQuantity);
 
-            // 创建商品副本并设置当前批次数量
             WmsOutOrdersItems splitItem = copyItemWithQuantity(item, quantityInBatch);
+            splitItem.setPackedQuantity(0);
+
             List<WmsOutOrdersItems> batch = new ArrayList<>();
             batch.add(splitItem);
 
-            // 创建包裹
             results.add(createBatchResult(order, batch, batchNum++));
 
+            // 这一句必须保证每轮减少，否则接口会超时
             remainingQuantity -= quantityInBatch;
         }
 
         return results;
     }
 
-    /**
-     * 创建商品项的副本并设置指定数量
-     * @param original 原始商品项
-     * @param quantity 新数量
-     * @return 新商品项
-     */
     private WmsOutOrdersItems copyItemWithQuantity(WmsOutOrdersItems original, int quantity) {
         WmsOutOrdersItems copy = new WmsOutOrdersItems();
         BeanUtils.copyProperties(original, copy);
@@ -154,12 +131,12 @@ public class SplitByWeightShipmentStrategy extends AbstractShipmentStrategy {
                                                        List<WmsOutOrdersItems> batch,
                                                        int batchNo) {
         WmsShipment shipment = createBaseShipment(order);
-        //包裹类型
         shipment.setShipmentType(WarehouseDictEnum.PACKAGE_TYPE_STANDARD.getCode());
 
         double batchWeight = calculateTotalWeight(batch);
         shipment.setTotalWeight(batchWeight);
-        //生成包裹明细
+        shipment.setPackageCount(batch.size());
+
         List<WmsShipmentDetail> shipmentDetail = createShipmentDetail(shipment, batch);
         return new ShipmentGenerationResult(shipment, batch, shipmentDetail);
     }

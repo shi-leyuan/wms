@@ -11,9 +11,14 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.jeecg.common.constant.ProvinceCityArea;
+import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.modules.wms.goods.entity.WmsCargoOwners;
+import org.jeecg.modules.wms.goods.entity.WmsProducts;
 import org.jeecg.modules.wms.goods.service.IWmsCargoOwnersService;
+import org.jeecg.modules.wms.goods.service.IWmsProductsService;
 import org.jeecg.modules.wms.outorder.entity.WmsOutOrders;
+import org.jeecg.modules.wms.outorder.entity.WmsOutOrdersItems;
+import org.jeecg.modules.wms.outorder.service.IWmsOutOrdersItemsService;
 import org.jeecg.modules.wms.shipment.entity.WmsShipment;
 import org.jeecg.modules.wms.waybill.service.IWmsSfService;
 import org.jeecg.modules.wms.waybill.sf.SfApiResponse;
@@ -44,6 +49,13 @@ public class IWmsSfServiceImpl implements IWmsSfService {
 
     @Autowired
     private IWmsCargoOwnersService wmsCargoOwnersService;
+
+    @Autowired
+    private IWmsOutOrdersItemsService wmsOutOrdersItemsService;
+
+    @Autowired
+    private IWmsProductsService wmsProductsService;
+
 
     /**
      * 请求快递平台获取运单号
@@ -98,7 +110,11 @@ public class IWmsSfServiceImpl implements IWmsSfService {
         sfOrderInfo.setOrderId(order.getOrderNo());
         sfOrderInfo.setPayMethod(1);
         sfOrderInfo.setParcelQty(shipments.size());//包裹数量
-        sfOrderInfo.setTotalWeight(6);//测试数据
+//        sfOrderInfo.setTotalWeight(6);//测试数据
+        double totalWeight = shipments.stream()
+                .mapToDouble(item -> item.getTotalWeight() == null ? 0D : item.getTotalWeight())
+                .sum();
+        sfOrderInfo.setTotalWeight(totalWeight);
         sfOrderInfo.setMonthlyCard(SfExpressUtil.getMonthly_card());
         sfOrderInfo.setExpressTypeId(2);
         sfOrderInfo.setLanguage("zh-CN");
@@ -133,15 +149,30 @@ public class IWmsSfServiceImpl implements IWmsSfService {
         sfOrderInfo.setContactInfoList(contactInfoList);
         //商品信息
         List<SfOrderInfo.CargoDetail> cargoDetails = new ArrayList<>();
+        //查询出库单明细
+        List<WmsOutOrdersItems> wmsOutOrdersItems = wmsOutOrdersItemsService.selectByMainId(order.getId());
+        // 遍历
+        for (WmsOutOrdersItems item : wmsOutOrdersItems) {
+            //查询商品
+            WmsProducts product = wmsProductsService.getById(item.getSkuId());
+            SfOrderInfo.CargoDetail cargoDetail = new SfOrderInfo.CargoDetail();
+            cargoDetail.setName(product.getProductName());
+            cargoDetail.setWeight(product.getNetWeight());//单位重量
+            cargoDetail.setCount(item.getPackedQuantity());
+            cargoDetail.setVolume(0.0);//体积
+            cargoDetail.setAmount(308.0);//价格
+            cargoDetails.add(cargoDetail);
+            sfOrderInfo.setCargoDetails(cargoDetails);
+        }
         //测试数据
-        SfOrderInfo.CargoDetail cargoDetail = new SfOrderInfo.CargoDetail();
-        cargoDetail.setName("君宝牌地毯");
-        cargoDetail.setWeight(0.1);
-        cargoDetail.setCount(1.0);
-        cargoDetail.setVolume(0.0);
-        cargoDetail.setAmount(308.0);
-        cargoDetails.add(cargoDetail);
-        sfOrderInfo.setCargoDetails(cargoDetails);
+//        SfOrderInfo.CargoDetail cargoDetail = new SfOrderInfo.CargoDetail();
+//        cargoDetail.setName("君宝牌地毯");
+//        cargoDetail.setWeight(0.1);
+//        cargoDetail.setCount(1.0);
+//        cargoDetail.setVolume(0.0);
+//        cargoDetail.setAmount(308.0);
+//        cargoDetails.add(cargoDetail);
+//        sfOrderInfo.setCargoDetails(cargoDetails);
         //生成json
         String sfOrderInfoJson = JSON.toJSONString(sfOrderInfo);
         String responseBody = SfExpressUtil.post(SfExpressUtil.EXP_RECE_CREATE_ORDER, sfOrderInfoJson);
@@ -149,42 +180,105 @@ public class IWmsSfServiceImpl implements IWmsSfService {
          * {"apiErrorMsg":"","apiResponseID":"0001980D3635003FCDC966C657C6883F","apiResultCode":"A1000","apiResultData":"{\"success\":false,\"errorCode\":\"8016\",\"errorMsg\":\"重复下单\",\"msgData\":null}"}
          */
 //		HashMap hashMap = JSON.parseObject("{\"success\":false,\"errorCode\":\"8016\",\"errorMsg\":\"重复下单\",\"msgData\":null}", HashMap.class);
-        //将响应结果转换成SfApiResponse
+        // 将响应结果转换成 SfApiResponse
         SfApiResponse sfApiResponse = JSON.parseObject(responseBody, SfApiResponse.class);
+
+        if (sfApiResponse == null) {
+            throw new JeecgBootException("顺丰创建运单失败：响应为空");
+        }
+
+        if (!"A1000".equals(sfApiResponse.getApiResultCode())) {
+            throw new JeecgBootException("顺丰创建运单失败：" + sfApiResponse.getApiErrorMsg());
+        }
+
         String apiResultDataJson = sfApiResponse.getApiResultData();
-        SfApiResponse.ApiResultData1 apiResultData11 = JSON.parseObject(apiResultDataJson, SfApiResponse.ApiResultData1.class);
-        //如果重复下单则调用查询订单接口
-        if ("重复下单".equals(apiResultData11.getErrorMsg())) {
-            /**
-             * {
-             * 	"searchType": "1",
-             * 	"orderId": "QIAO-20200618-00522",
-             * 	"language": "zh-cn"
-             * }
-             */
-            //查询订单请求对象
+        if (StringUtils.isBlank(apiResultDataJson)) {
+            throw new JeecgBootException("顺丰创建运单失败：apiResultData为空");
+        }
+
+        SfApiResponse.ApiResultData1 apiResultData = JSON.parseObject(apiResultDataJson, SfApiResponse.ApiResultData1.class);
+
+        if (apiResultData == null) {
+            throw new JeecgBootException("顺丰创建运单失败：apiResultData解析失败");
+        }
+
+// 正常下单成功：直接解析 msgData 里的 waybillNoInfoList
+        if ("true".equals(apiResultData.getSuccess()) || Boolean.TRUE.toString().equals(apiResultData.getSuccess())) {
+            return parseWaybillNos(apiResultData.getMsgData(), shipmentSize, order.getOrderNo());
+        }
+
+// 重复下单：调用查询订单接口，再解析查询结果
+        if ("重复下单".equals(apiResultData.getErrorMsg())) {
             SfExpressUtil.SearchOrderParam searchOrderParam = new SfExpressUtil.SearchOrderParam();
             searchOrderParam.setOrderId(order.getOrderNo());
             searchOrderParam.setSearchType("1");
             searchOrderParam.setLanguage("zh-cn");
-            String searchOrderResponseBody = SfExpressUtil.post(SfExpressUtil.EXP_RECE_SEARCH_ORDER_RESP, JSON.toJSONString(searchOrderParam));
-            /**
-             * {"apiErrorMsg":"","apiResponseID":"0001980D4990BD3FE464FACE9440A73F","apiResultCode":"A1000","apiResultData":"{\"success\":true,\"errorCode\":\"S0000\",\"errorMsg\":null,\"msgData\":{\"orderId\":\"OBD202506110007\",\"returnExtraInfoList\":null,\"waybillNoInfoList\":[{\"waybillType\":1,\"waybillNo\":\"SF7444497657631\"}],\"origincode\":\"710\",\"destcode\":\"719\",\"filterResult\":\"2\",\"remark\":null,\"routeLabelInfo\":[{\"code\":\"1000\",\"routeLabelData\":{\"waybillNo\":\"SF7444497657631\",\"sourceTransferCode\":\"710\",\"sourceCityCode\":\"710\",\"sourceDeptCode\":\"710\",\"sourceTeamCode\":\"\",\"destCityCode\":\"719\",\"destDeptCode\":\"719J\",\"destDeptCodeMapping\":\"\",\"destTeamCode\":\"009\",\"destTeamCodeMapping\":\"\",\"destTransferCode\":\"719\",\"destRouteLabel\":\"719-719J-011\",\"proName\":\"顺丰标快\",\"cargoTypeCode\":\"T6\",\"limitTypeCode\":\"T6\",\"expressTypeCode\":\"B1\",\"codingMapping\":\"K14\",\"codingMappingOut\":\"\",\"xbFlag\":\"0\",\"printFlag\":\"000000000\",\"twoDimensionCode\":\"MMM={'k1':'719','k2':'719J','k3':'009','k4':'T801','k5':'SF7444497657631','k6':'','k7':'de29da16'}\",\"proCode\":\"T801\",\"printIcon\":\"00000000\",\"abFlag\":\"\",\"destPortCode\":\"\",\"destCountry\":\"\",\"destPostCode\":\"\",\"goodsValueTotal\":\"\",\"currencySymbol\":\"\",\"cusBatch\":\"\",\"goodsNumber\":\"\",\"errMsg\":\"\",\"checkCode\":\"de29da16\",\"proIcon\":\"\",\"fileIcon\":\"\",\"fbaIcon\":\"\",\"icsmIcon\":\"\",\"destGisDeptCode\":\"719J\",\"newIcon\":null},\"message\":\"SF7444497657631:\"}],\"contactInfo\":null,\"clientCode\":\"Y2VL6F82\",\"serviceList\":null}}"}
-             */
-            SfApiResponse sfApiResponse1 = JSON.parseObject(searchOrderResponseBody, SfApiResponse.class);
-            String apiResultDataJson2 = sfApiResponse1.getApiResultData();
-            SfApiResponse.ApiResultData1 apiResultData12 = JSON.parseObject(apiResultDataJson2, SfApiResponse.ApiResultData1.class);
-            String msgData = apiResultData12.getMsgData();
-            SfApiResponse.MsgData apiResultData1 = JSON.parseObject(msgData, SfApiResponse.MsgData.class);
-            List<SfApiResponse.WaybillNoInfo> waybillNoInfoList = apiResultData1.getWaybillNoInfoList();
-            if (waybillNoInfoList != null && waybillNoInfoList.size() == shipmentSize) {
-                //取出waybillNoInfoList中的运单号,得到List<String>
-                List<String> waybillNos = waybillNoInfoList.stream().map(SfApiResponse.WaybillNoInfo::getWaybillNo).collect(Collectors.toList());
-                return waybillNos;
+
+            String searchOrderResponseBody = SfExpressUtil.post(
+                    SfExpressUtil.EXP_RECE_SEARCH_ORDER_RESP,
+                    JSON.toJSONString(searchOrderParam)
+            );
+
+            SfApiResponse searchApiResponse = JSON.parseObject(searchOrderResponseBody, SfApiResponse.class);
+
+            if (searchApiResponse == null) {
+                throw new JeecgBootException("顺丰查询订单失败：响应为空");
             }
 
+            if (!"A1000".equals(searchApiResponse.getApiResultCode())) {
+                throw new JeecgBootException("顺丰查询订单失败：" + searchApiResponse.getApiErrorMsg());
+            }
+
+            String searchApiResultDataJson = searchApiResponse.getApiResultData();
+            SfApiResponse.ApiResultData1 searchApiResultData =
+                    JSON.parseObject(searchApiResultDataJson, SfApiResponse.ApiResultData1.class);
+
+            if (searchApiResultData == null || !"true".equals(searchApiResultData.getSuccess())) {
+                throw new JeecgBootException("顺丰查询订单失败：" +
+                        (searchApiResultData == null ? "结果为空" : searchApiResultData.getErrorMsg()));
+            }
+
+            return parseWaybillNos(searchApiResultData.getMsgData(), shipmentSize, order.getOrderNo());
         }
-        return null;
+
+        // 其他失败情况
+        throw new JeecgBootException("顺丰创建运单失败，错误码："
+                + apiResultData.getErrorCode()
+                + "，错误信息：" + apiResultData.getErrorMsg());
+    }
+
+    private List<String> parseWaybillNos(String msgData, int shipmentSize, String orderNo) {
+        if (StringUtils.isBlank(msgData)) {
+            throw new JeecgBootException("顺丰创建运单失败：msgData为空，订单号：" + orderNo);
+        }
+
+        SfApiResponse.MsgData msgDataObj = JSON.parseObject(msgData, SfApiResponse.MsgData.class);
+        if (msgDataObj == null) {
+            throw new JeecgBootException("顺丰创建运单失败：msgData解析失败，订单号：" + orderNo);
+        }
+
+        List<SfApiResponse.WaybillNoInfo> waybillNoInfoList = msgDataObj.getWaybillNoInfoList();
+        if (waybillNoInfoList == null || waybillNoInfoList.isEmpty()) {
+            throw new JeecgBootException("顺丰创建运单失败：未返回运单号，订单号：" + orderNo);
+        }
+
+        List<String> waybillNos = waybillNoInfoList.stream()
+                .map(SfApiResponse.WaybillNoInfo::getWaybillNo)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toList());
+
+        if (waybillNos.isEmpty()) {
+            throw new JeecgBootException("顺丰创建运单失败：返回的运单号为空，订单号：" + orderNo);
+        }
+
+        if (waybillNos.size() != shipmentSize) {
+            throw new JeecgBootException("顺丰返回运单数量和包裹数量不一致，订单号："
+                    + orderNo
+                    + "，运单数量：" + waybillNos.size()
+                    + "，包裹数量：" + shipmentSize);
+        }
+
+        return waybillNos;
     }
 
     @Override

@@ -239,45 +239,102 @@ public class WmsShipmentServiceImpl extends ServiceImpl<WmsShipmentMapper, WmsSh
 	@Transactional(rollbackFor = Exception.class)
 	@Override
 	public int createShipment(String waveId) {
-		//查询波次信息
 		WmsWaveMaster wave = wmsWaveMasterService.getById(waveId);
 		if (wave == null) {
-			//抛出异常
-			throw new RuntimeException("波次"+waveId+"不存在");
-		}
-		//如果状态不是拣货完成，则不能创建包裹
-		if (!WarehouseDictEnum.WAVE_PICKED.getCode().equals(wave.getStatus()) ) {
-			return 0;
+			throw new JeecgBootException("波次" + waveId + "不存在");
 		}
 
-		// 1. 查询波次下的所有出库单
-		List<WmsOutOrders> wmsOutOrders = wmsOutOrdersService.selectByWaveId(waveId);
-		//过滤掉未完成拣货的出库单
-		 wmsOutOrders = wmsOutOrders.stream().filter(order -> WarehouseDictEnum.OUTBOUND_PICKED.getCode().equals(order.getStatus())).collect(Collectors.toList());
-
-		if (wmsOutOrders.isEmpty()) {
-			return 0;
+		// 严格按你的流程：波次必须拣货完成
+		if (!WarehouseDictEnum.WAVE_PICKED.getCode().equals(wave.getStatus())) {
+			throw new JeecgBootException("波次未拣货完成，不能创建包裹");
 		}
-		//获取当前用户
-//		LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
-//		String realname = sysUser.getRealname();
+
+		List<WmsOutOrders> orders = wmsOutOrdersService.selectByWaveId(waveId);
+		if (orders == null || orders.isEmpty()) {
+			throw new JeecgBootException("该波次下没有出库单");
+		}
 
 		int createdCount = 0;
 
-		// 2. 为每个出库单创建包裹
-		for (WmsOutOrders order : wmsOutOrders) {
-			try {
-				int i = owner.generateForSingleOrder(order);
-				// 记录成功创建的包裹数量
-				createdCount += i;
-			} catch (Exception e) {
-				// 记录错误但继续处理其他订单
-				log.error("包裹生成失败，订单ID: {}", order.getId(), e);
+		for (WmsOutOrders order : orders) {
+			// 严格按你的流程：只处理拣货完成的出库单
+			if (!WarehouseDictEnum.OUTBOUND_PICKED.getCode().equals(order.getStatus())
+					&& !WarehouseDictEnum.OUTBOUND_PACKED.getCode().equals(order.getStatus())) {
+				throw new JeecgBootException("出库单【" + order.getOrderNo() + "】未拣货完成，不能创建包裹");
+			}
+
+			if (WarehouseDictEnum.OUTBOUND_PACKED.getCode().equals(order.getStatus())) {
+				continue;
+			}
+
+			int count = owner.generateForSingleOrder(order);
+			createdCount += count;
+
+			// 如果该出库单所有明细都已经打包完成，则更新订单、明细、包裹状态
+			if (isOrderPackQuantityComplete(order.getId())) {
+				completePackByOrder(order);
 			}
 		}
-		// 返回创建的包裹数量
+
+		// 如果该波次下所有出库单都已打包，则更新波次状态为已打包
+		if (allOrdersPacked(waveId)) {
+			updateWavePacked(waveId);
+		}
+
 		return createdCount;
 	}
+
+	/**
+	 * 判断波次下所有出库单是否都已打包
+	 *
+	 * @param waveId 波次ID
+	 * @return true-全部已打包 false-未全部打包
+	 */
+	private boolean allOrdersPacked(String waveId) {
+		if (waveId == null || waveId.trim().isEmpty()) {
+			return false;
+		}
+
+		List<WmsOutOrders> orders = wmsOutOrdersService.selectByWaveId(waveId);
+
+		if (orders == null || orders.isEmpty()) {
+			return false;
+		}
+
+		return orders.stream().allMatch(order ->
+				WarehouseDictEnum.OUTBOUND_PACKED.getCode().equals(order.getStatus())
+		);
+	}
+	/**
+	 * 判断某个出库单是否已全部完成打包
+	 */
+	private boolean isOrderPackQuantityComplete(String orderId) {
+		List<WmsOutOrdersItems> items = wmsOutOrdersItemsService.selectByMainId(orderId);
+		if (items == null || items.isEmpty()) {
+			return false;
+		}
+
+		return items.stream().allMatch(item -> {
+			int pickedQuantity = ObjectUtil.defaultIfNull(item.getPickedQuantity(), 0);
+			int packedQuantity = ObjectUtil.defaultIfNull(item.getPackedQuantity(), 0);
+			return pickedQuantity - packedQuantity == 0;
+		});
+	}
+
+	/**
+	 * 更新波次状态为已打包
+	 */
+	private void updateWavePacked(String waveId) {
+		LambdaUpdateWrapper<WmsWaveMaster> update = new LambdaUpdateWrapper<WmsWaveMaster>()
+				.eq(WmsWaveMaster::getId, waveId)
+				.set(WmsWaveMaster::getStatus, WarehouseDictEnum.WAVE_PACKED.getCode());
+
+		boolean result = wmsWaveMasterService.update(null, update);
+		if (!result) {
+			throw new JeecgBootException("更新波次打包状态失败");
+		}
+	}
+
 	/**
 	 * 单个订单生成包裹
 	 * @param order
@@ -285,62 +342,77 @@ public class WmsShipmentServiceImpl extends ServiceImpl<WmsShipmentMapper, WmsSh
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public int generateForSingleOrder(WmsOutOrders order) {
-		//如果状态未完成拣货则不允许创建包裹，抛出异常
 		if (!WarehouseDictEnum.OUTBOUND_PICKED.getCode().equals(order.getStatus())) {
-			throw new RuntimeException("订单"+order.getOrderNo()+"未完成拣货");
+			throw new JeecgBootException("订单" + order.getOrderNo() + "未完成拣货");
 		}
-		List<WmsOutOrdersItems> wmsOutOrdersItems = wmsOutOrdersItemsService.selectByMainId(order.getId());
-		//如果存在未完成拣货的出库单明细不允许创建包裹
-		 if (wmsOutOrdersItems.stream().anyMatch(item -> !WarehouseDictEnum.OUTBOUND_DETAIL_PICKED.getCode().equals(item.getStatus()))) {
-			 throw new RuntimeException("订单"+order.getOrderNo()+"存在未完成拣货的出库单明细");
-		 }
-		//获取策略
-		ShipmentGenerationStrategy strategy = shipmentStrategyFactory.getStrategy(order);
-		//生成包裹
-		List<ShipmentGenerationResult> results = strategy.generateShipments(order, wmsOutOrdersItems);
-		//如果生成包裹数量为0，则返回0
-		if (results.isEmpty()) {
+
+		List<WmsOutOrdersItems> items = wmsOutOrdersItemsService.selectByMainId(order.getId());
+		if (items == null || items.isEmpty()) {
+			throw new JeecgBootException("订单" + order.getOrderNo() + "没有出库单明细");
+		}
+
+		// 严格按你的流程：存在未拣货完成明细则不能创建包裹
+		boolean hasUnPickedItem = items.stream().anyMatch(item ->
+				!WarehouseDictEnum.OUTBOUND_DETAIL_PICKED.getCode().equals(item.getStatus())
+						&& !WarehouseDictEnum.OUTBOUND_DETAIL_PACKED.getCode().equals(item.getStatus())
+		);
+
+		if (hasUnPickedItem) {
+			throw new JeecgBootException("订单" + order.getOrderNo() + "存在未完成拣货的出库单明细");
+		}
+
+		// 只处理剩余打包数量 > 0 的明细
+		List<WmsOutOrdersItems> needPackItems = items.stream()
+				.filter(item -> {
+					int pickedQuantity = ObjectUtil.defaultIfNull(item.getPickedQuantity(), 0);
+					int packedQuantity = ObjectUtil.defaultIfNull(item.getPackedQuantity(), 0);
+					return pickedQuantity - packedQuantity > 0;
+				})
+				.collect(Collectors.toList());
+
+		// 没有剩余打包数量，说明该订单已经不需要再生成包裹
+		if (needPackItems.isEmpty()) {
 			return 0;
 		}
 
-		// 批量保存包裹
+		ShipmentGenerationStrategy strategy = shipmentStrategyFactory.getStrategy(order);
+
+		List<ShipmentGenerationResult> results = strategy.generateShipments(order, needPackItems);
+		if (results == null || results.isEmpty()) {
+			return 0;
+		}
+
 		List<WmsShipment> shipments = results.stream()
 				.map(ShipmentGenerationResult::getShipment)
 				.collect(Collectors.toList());
-		//保存包裹主表
-		saveBatch(shipments);
-		//从results中提取shipmentDetail 组成一个集合
+
+		boolean saveShipment = saveBatch(shipments);
+		if (!saveShipment) {
+			throw new JeecgBootException("包裹主表保存失败");
+		}
+
 		List<WmsShipmentDetail> allDetails = results.stream()
 				.map(ShipmentGenerationResult::getShipmentDetail)
 				.flatMap(Collection::stream)
 				.collect(Collectors.toList());
-		boolean b = wmsShipmentDetailService.saveBatch(allDetails);
-		if (!b) {
-			throw new RuntimeException("包裹保存失败");
+
+		boolean saveDetail = wmsShipmentDetailService.saveBatch(allDetails);
+		if (!saveDetail) {
+			throw new JeecgBootException("包裹明细保存失败");
 		}
-		//更新出库单明细的打包数量
-		allDetails.forEach(detail -> {
-			String orderItemId = detail.getOrderItemId();
+
+		// 更新出库单明细打包数量
+		List<String> orderItemIds = allDetails.stream()
+				.map(WmsShipmentDetail::getOrderItemId)
+				.filter(Objects::nonNull)
+				.distinct()
+				.collect(Collectors.toList());
+
+		for (String orderItemId : orderItemIds) {
 			updateOutItemPackedQuantity(orderItemId);
-		});
+		}
 
 		return results.size();
-	}
-	//判断所有商品是否已打包
-	private boolean allItemsPacked(String orderId) {
-		//查询该出库单下的明细
-		List<WmsOutOrdersItems> wmsOutOrdersItems = wmsOutOrdersItemsService.selectByMainId(orderId);
-		boolean b = wmsOutOrdersItems.stream().allMatch(item -> WarehouseDictEnum.OUTBOUND_DETAIL_PACKED.getCode().equals(item.getStatus()));
-		return b;
-
-	}
-	//判断所有订单是否已打包
-	private boolean allOrdersPacked(String waveId) {
-		//查询该波次下的订单
-		List<WmsOutOrders> wmsOutOrders = wmsOutOrdersService.selectByWaveId(waveId);
-		boolean b = wmsOutOrders.stream().allMatch(order -> WarehouseDictEnum.OUTBOUND_PACKED.getCode().equals(order.getStatus()));
-		return b;
-
 	}
 
 	@Override

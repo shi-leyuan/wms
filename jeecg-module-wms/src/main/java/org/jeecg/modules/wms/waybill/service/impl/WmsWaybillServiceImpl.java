@@ -54,175 +54,210 @@ import java.util.stream.Collectors;
 /**
  * @Description: 运单服务接口
  * @Author: jeecg-boot
- * @Date:   2025-06-13
+ * @Date: 2025-06-13
  * @Version: V1.0
  */
 @Service
 @Slf4j
-public class WmsWaybillServiceImpl  implements IWmsWaybillService {
+public class WmsWaybillServiceImpl implements IWmsWaybillService {
 
-	@Autowired
-	private IWmsShipmentService wmsShipmentService;
+    @Autowired
+    private IWmsShipmentService wmsShipmentService;
 
-	@Autowired
-	private IWmsOutOrdersItemsService wmsOutOrdersItemsService;
+    @Autowired
+    private IWmsOutOrdersItemsService wmsOutOrdersItemsService;
 
-	@Autowired
-	private IWmsTasksRecordsService wmsTasksRecordsService;
+    @Autowired
+    private IWmsTasksRecordsService wmsTasksRecordsService;
 
-	@Autowired
-	private WmsWaybillServiceImpl owner;
+    @Autowired
+    private WmsWaybillServiceImpl owner;
 
-	@Autowired
-	private IWmsOutOrdersService wmsOutOrdersService;
-	@Autowired
-	private IWmsWaveMasterService wmsWaveMasterService;
+    @Autowired
+    private IWmsOutOrdersService wmsOutOrdersService;
+    @Autowired
+    private IWmsWaveMasterService wmsWaveMasterService;
 
-	@Autowired
-	private WmsInventoryTransByDeliver wmsInventoryTransByDeliver;
-
-
-	@Autowired
-	private IWmsSfService sfService;
+    @Autowired
+    private WmsInventoryTransByDeliver wmsInventoryTransByDeliver;
 
 
-	/**
-	 * 发货
-	 * @param waveId
-	 */
-	@Transactional(rollbackFor = Exception.class)
-	public void send(String waveId){
-		//根据波次id查询出库单
-		List<WmsOutOrders> wmsOutOrders = wmsOutOrdersService.selectByMainId(waveId);
-		//判断wmsOutOrders中是否存在未创建运单的出库单
-		if(wmsOutOrders.stream().anyMatch(order -> order.getCreatedWaybill().equals("0"))){
-			throw new JeecgBootException("波次下存在未创建运单的出库单暂时无法发货！");
-		}
-		//更新订单的状态为已发货
-		LambdaUpdateWrapper<WmsOutOrders> eq = new LambdaUpdateWrapper<WmsOutOrders>()
-				.in(WmsOutOrders::getWaveId, waveId)
-				.set(WmsOutOrders::getStatus, WarehouseDictEnum.OUTBOUND_SHIPPED.getCode())
-				.eq(WmsOutOrders::getStatus, WarehouseDictEnum.OUTBOUND_PACKED.getCode());
-		boolean update = wmsOutOrdersService.update(null, eq);
-		if(!update){
-			throw new JeecgBootException("更新订单状态为已发货失败");
-		}
-		//更新波次状态为已发货
-		LambdaUpdateWrapper<WmsWaveMaster> eq1 = new LambdaUpdateWrapper<WmsWaveMaster>()
-				.eq(WmsWaveMaster::getId, waveId)
-				.set(WmsWaveMaster::getStatus, WarehouseDictEnum.WAVE_SHIPPED.getCode())
-				.eq(WmsWaveMaster::getStatus, WarehouseDictEnum.WAVE_PACKED.getCode());
-		boolean update1 = wmsWaveMasterService.update(null, eq1);
-		if(!update1){
-			throw new JeecgBootException("更新波次状态为已发货失败");
-		}
-		//更新包裹状态为已发货
-		//从wmsOutOrders中找到未打包的出库单并提取订单id
-		List<String> orderIds = wmsOutOrders.stream().map(WmsOutOrders::getId).collect(Collectors.toList());
-		LambdaUpdateWrapper<WmsShipment> eq2 = new LambdaUpdateWrapper<WmsShipment>()
-				.in(WmsShipment::getOrderId, orderIds)
-				.set(WmsShipment::getStatus, WarehouseDictEnum.PACKAGE_STATUS_SHIPPED.getCode())
-				.eq(WmsShipment::getStatus, WarehouseDictEnum.PACKAGE_STATUS_PACKED.getCode());
-		boolean update2 = wmsShipmentService.update(null, eq2);
-		if(!update2){
-			throw new JeecgBootException("更新包裹状态失败");
-		}
-
-		//更新出库单明细状态为已发货
-		LambdaUpdateWrapper<WmsOutOrdersItems> eq3 = new LambdaUpdateWrapper<WmsOutOrdersItems>()
-				.in(WmsOutOrdersItems::getOrderId, orderIds)
-				.set(WmsOutOrdersItems::getStatus, WarehouseDictEnum.OUTBOUND_DETAIL_SHIPPED.getCode())
-				.eq(WmsOutOrdersItems::getStatus, WarehouseDictEnum.OUTBOUND_DETAIL_PACKED.getCode());
-				boolean update3 = wmsOutOrdersItemsService.update(null, eq3);
-				if(!update3){
-					throw new JeecgBootException("更新出库单明细状态为已发货失败");
-				}
-
-		//============================扣减库存==========================
-		//找到拣货储位
-		List<WmsTasksRecords> list = wmsTasksRecordsService.list(new LambdaQueryWrapper<WmsTasksRecords>().eq(WmsTasksRecords::getWaveOrderId, waveId));
-		WmsTasksRecords wmsTasksRecords = list.get(0);
-		String targetLocationCode = wmsTasksRecords.getTargetLocationCode();
-		//遍历出库单扣减库存
-		for (WmsOutOrders outOrder : wmsOutOrders){
-			//查询出库单明细
-			List<WmsOutOrdersItems> wmsOutOrdersItems = wmsOutOrdersItemsService.selectByMainId(outOrder.getId());
-			for (WmsOutOrdersItems item : wmsOutOrdersItems){
-				WmsInventoryTransParam inventoryTransParam = new WmsInventoryTransParam();
-				inventoryTransParam.setProductId(item.getSkuId());
-				inventoryTransParam.setExecQuantity(item.getPickedQuantity());
-				inventoryTransParam.setSourceLocationCode(targetLocationCode);
-				inventoryTransParam.setWarehouseId(wmsTasksRecords.getTargetWarehouseId());
-				inventoryTransParam.setBatchNumber(item.getBatchNumber());
-				inventoryTransParam.setTransactionType(WarehouseDictEnum.INVENTORY_OUTBOUND.getCode());
-				//上架时间
-				inventoryTransParam.setOperationTime(wmsTasksRecords.getOperationTime());
-				wmsInventoryTransByDeliver.transfer(inventoryTransParam);
-			}
-		}
+    @Autowired
+    private IWmsSfService sfService;
 
 
+    /**
+     * 发货
+     *
+     * @param waveId
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void send(String waveId) {
+        //根据波次id查询出库单
+        List<WmsOutOrders> wmsOutOrders = wmsOutOrdersService.selectByMainId(waveId);
+        //判断wmsOutOrders中是否存在未创建运单的出库单
+        if (wmsOutOrders.stream().anyMatch(order -> order.getCreatedWaybill().equals("0"))) {
+            throw new JeecgBootException("波次下存在未创建运单的出库单暂时无法发货！");
+        }
+        //更新订单的状态为已发货
+        LambdaUpdateWrapper<WmsOutOrders> eq = new LambdaUpdateWrapper<WmsOutOrders>()
+                .in(WmsOutOrders::getWaveId, waveId)
+                .set(WmsOutOrders::getStatus, WarehouseDictEnum.OUTBOUND_SHIPPED.getCode())
+                .eq(WmsOutOrders::getStatus, WarehouseDictEnum.OUTBOUND_PACKED.getCode());
+        boolean update = wmsOutOrdersService.update(null, eq);
+        if (!update) {
+            throw new JeecgBootException("更新订单状态为已发货失败");
+        }
+        //更新波次状态为已发货
+        LambdaUpdateWrapper<WmsWaveMaster> eq1 = new LambdaUpdateWrapper<WmsWaveMaster>()
+                .eq(WmsWaveMaster::getId, waveId)
+                .set(WmsWaveMaster::getStatus, WarehouseDictEnum.WAVE_SHIPPED.getCode())
+                .eq(WmsWaveMaster::getStatus, WarehouseDictEnum.WAVE_PACKED.getCode());
+        boolean update1 = wmsWaveMasterService.update(null, eq1);
+        if (!update1) {
+            throw new JeecgBootException("更新波次状态为已发货失败");
+        }
+        //更新包裹状态为已发货
+        //从wmsOutOrders中找到未打包的出库单并提取订单id
+        List<String> orderIds = wmsOutOrders.stream().map(WmsOutOrders::getId).collect(Collectors.toList());
+        LambdaUpdateWrapper<WmsShipment> eq2 = new LambdaUpdateWrapper<WmsShipment>()
+                .in(WmsShipment::getOrderId, orderIds)
+                .set(WmsShipment::getStatus, WarehouseDictEnum.PACKAGE_STATUS_SHIPPED.getCode())
+                .eq(WmsShipment::getStatus, WarehouseDictEnum.PACKAGE_STATUS_PACKED.getCode());
+        boolean update2 = wmsShipmentService.update(null, eq2);
+        if (!update2) {
+            throw new JeecgBootException("更新包裹状态失败");
+        }
 
-	}
+        //更新出库单明细状态为已发货
+        LambdaUpdateWrapper<WmsOutOrdersItems> eq3 = new LambdaUpdateWrapper<WmsOutOrdersItems>()
+                .in(WmsOutOrdersItems::getOrderId, orderIds)
+                .set(WmsOutOrdersItems::getStatus, WarehouseDictEnum.OUTBOUND_DETAIL_SHIPPED.getCode())
+                .eq(WmsOutOrdersItems::getStatus, WarehouseDictEnum.OUTBOUND_DETAIL_PACKED.getCode());
+        boolean update3 = wmsOutOrdersItemsService.update(null, eq3);
+        if (!update3) {
+            throw new JeecgBootException("更新出库单明细状态为已发货失败");
+        }
+
+        //============================扣减库存==========================
+        //找到拣货储位
+        List<WmsTasksRecords> list = wmsTasksRecordsService.list(new LambdaQueryWrapper<WmsTasksRecords>().eq(WmsTasksRecords::getWaveOrderId, waveId));
+        WmsTasksRecords wmsTasksRecords = list.get(0);
+        String targetLocationCode = wmsTasksRecords.getTargetLocationCode();
+        //遍历出库单扣减库存
+        for (WmsOutOrders outOrder : wmsOutOrders) {
+            //查询出库单明细
+            List<WmsOutOrdersItems> wmsOutOrdersItems = wmsOutOrdersItemsService.selectByMainId(outOrder.getId());
+            for (WmsOutOrdersItems item : wmsOutOrdersItems) {
+                WmsInventoryTransParam inventoryTransParam = new WmsInventoryTransParam();
+                inventoryTransParam.setProductId(item.getSkuId());
+                inventoryTransParam.setExecQuantity(item.getPickedQuantity());
+                inventoryTransParam.setSourceLocationCode(targetLocationCode);
+                inventoryTransParam.setWarehouseId(wmsTasksRecords.getTargetWarehouseId());
+                inventoryTransParam.setBatchNumber(item.getBatchNumber());
+                inventoryTransParam.setTransactionType(WarehouseDictEnum.INVENTORY_OUTBOUND.getCode());
+                //上架时间
+                inventoryTransParam.setOperationTime(wmsTasksRecords.getOperationTime());
+                wmsInventoryTransByDeliver.transfer(inventoryTransParam);
+            }
+        }
 
 
-	/**
-	 * 根据波次id查询运单id
-	 * @param waveId 波次id
-	 * @return 运单id
-	 */
-	public List<String> selectWaybillNosByWaveId(String waveId){
-		//根据波次id查询出库单
-		List<WmsOutOrders> wmsOutOrders = wmsOutOrdersService.selectByMainId(waveId);
-		//判断wmsOutOrders中是否存在未创建运单的出库单
-		if(wmsOutOrders.stream().anyMatch(order -> order.getCreatedWaybill().equals("0"))){
-			throw new JeecgBootException("波次下存在未创建运单的出库单，请稍后再试！");
-		}
-		//根据订单id查询包裹并得到运单号
-		LambdaQueryWrapper<WmsShipment> in = new LambdaQueryWrapper<WmsShipment>()
-				.in(WmsShipment::getOrderId, wmsOutOrders.stream().map(WmsOutOrders::getId).collect(Collectors.toList()));
-		List<WmsShipment> wmsShipments = wmsShipmentService.list(in);
-		//获取运单号
-		List<String> waybillNos = wmsShipments.stream().map(WmsShipment::getTrackingNo).collect(Collectors.toList());
-		return waybillNos;
-	}
+    }
 
-	/**
-	 * 请求顺丰生成指定订单的运单
-	 * 首先请求顺丰下单，成功后生成运单
-	 */
-	public void generateWaybillForOrder(String orderId) throws Exception {
 
-	}
+    /**
+     * 根据波次id查询运单id
+     *
+     * @param waveId 波次id
+     * @return 运单id
+     */
+    public List<String> selectWaybillNosByWaveId(String waveId) {
+        //根据波次id查询出库单
+        List<WmsOutOrders> wmsOutOrders = wmsOutOrdersService.selectByMainId(waveId);
+        //判断wmsOutOrders中是否存在未创建运单的出库单
+        if (wmsOutOrders.stream().anyMatch(order -> order.getCreatedWaybill().equals("0"))) {
+            throw new JeecgBootException("波次下存在未创建运单的出库单，请稍后再试！");
+        }
+        //根据订单id查询包裹并得到运单号
+        LambdaQueryWrapper<WmsShipment> in = new LambdaQueryWrapper<WmsShipment>()
+                .in(WmsShipment::getOrderId, wmsOutOrders.stream().map(WmsOutOrders::getId).collect(Collectors.toList()));
+        List<WmsShipment> wmsShipments = wmsShipmentService.list(in);
+        //获取运单号
+        List<String> waybillNos = wmsShipments.stream().map(WmsShipment::getTrackingNo).collect(Collectors.toList());
+        return waybillNos;
+    }
 
-	/**
-	 * 保存运单号
-	 * @param waybillNos 运单号
-	 * @param shipments 包裹
-	 */
-	@Transactional(rollbackFor = Exception.class)
-	public void saveWaybill(List<String> waybillNos,List<WmsShipment> shipments){
-		//如果运单号的数量和包裹数量不一致不能继续，抛出异常
-		if(waybillNos.size() != shipments.size()){
-			throw new RuntimeException("运单数量和包裹数量不一致");
-		}
-		//将运单号依次保存到包裹中
-		for (int i = 0; i < waybillNos.size(); i++) {
-			LambdaUpdateWrapper<WmsShipment> set = new LambdaUpdateWrapper<WmsShipment>()
-					.eq(WmsShipment::getId, shipments.get(i).getId())
-					.set(WmsShipment::getTrackingNo, waybillNos.get(i));
-			wmsShipmentService.update(null,set);
-		}
-		WmsShipment wmsShipment = shipments.get(0);
-		//订单id
-		String orderId = wmsShipment.getOrderId();
-		//更新订单"createdWaybill"为1
-		LambdaUpdateWrapper<WmsOutOrders> update = new LambdaUpdateWrapper<WmsOutOrders>()
-				.eq(WmsOutOrders::getId, orderId)
-				.set(WmsOutOrders::getCreatedWaybill, "1");
-		wmsOutOrdersService.update(null, update);
-	}
+    /**
+     * 请求顺丰生成指定订单的运单
+     * 首先请求顺丰下单，成功后生成运单
+     */
+    public void generateWaybillForOrder(String orderId) throws Exception {
+        //查询出库单
+        WmsOutOrders order = wmsOutOrdersService.getById(orderId);
+        //如果状态不是打包完成，则不能生成运单
+        if (!order.getStatus().equals(WarehouseDictEnum.OUTBOUND_PACKED.getCode())) {
+            throw new JeecgBootException("出库单" + order.getOrderNo() + "状态不是打包完成，不能生成运单");
+        }
+        //如果运单已经生成，则不能重复生成
+        if (order.getCreatedWaybill().equals("1")) {
+            throw new JeecgBootException("出库单" + order.getOrderNo() + "已生成运单，不能重复生成");
+        }
+        //查询该订单下的包裹
+        List<WmsShipment> shipments = wmsShipmentService.selectByOrderId(orderId);
+        int shipmentSize = shipments.size();
+        if (shipmentSize == 0) {
+            throw new JeecgBootException("出库单" + order.getOrderNo() + "没有包裹，不能生成运单");
+        }
+        //调用顺丰创建运单
+        List<String> waybillNos = sfService.requestSfCreateOrder(order, shipments);
+        //保存运单号
+        owner.saveWaybill(waybillNos, shipments);
+    }
 
+    /**
+     * 保存运单号
+     *
+     * @param waybillNos 运单号
+     * @param shipments  包裹
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void saveWaybill(List<String> waybillNos, List<WmsShipment> shipments) {
+        if (shipments == null || shipments.isEmpty()) {
+            throw new JeecgBootException("包裹不能为空，无法保存运单号");
+        }
+
+        if (waybillNos == null || waybillNos.isEmpty()) {
+            throw new JeecgBootException("顺丰创建运单失败：未返回运单号");
+        }
+
+        if (waybillNos.size() != shipments.size()) {
+            throw new JeecgBootException("运单数量和包裹数量不一致，运单数量："
+                    + waybillNos.size() + "，包裹数量：" + shipments.size());
+        }
+
+        for (int i = 0; i < waybillNos.size(); i++) {
+            LambdaUpdateWrapper<WmsShipment> set = new LambdaUpdateWrapper<WmsShipment>()
+                    .eq(WmsShipment::getId, shipments.get(i).getId())
+                    .set(WmsShipment::getTrackingNo, waybillNos.get(i));
+            boolean update = wmsShipmentService.update(null, set);
+            if (!update) {
+                throw new JeecgBootException("保存包裹运单号失败");
+            }
+        }
+
+        WmsShipment wmsShipment = shipments.get(0);
+        String orderId = wmsShipment.getOrderId();
+
+        LambdaUpdateWrapper<WmsOutOrders> update = new LambdaUpdateWrapper<WmsOutOrders>()
+                .eq(WmsOutOrders::getId, orderId)
+                .set(WmsOutOrders::getCreatedWaybill, "1");
+
+        boolean updateOrder = wmsOutOrdersService.update(null, update);
+        if (!updateOrder) {
+            throw new JeecgBootException("更新出库单已创建运单状态失败");
+        }
+    }
 
 
 }

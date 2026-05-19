@@ -1,6 +1,7 @@
 package org.jeecg.modules.wms.shipment.strategy;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.modules.wms.config.WarehouseDictEnum;
 import org.jeecg.modules.wms.goods.entity.WmsProducts;
 import org.jeecg.modules.wms.goods.service.IWmsProductsService;
@@ -52,13 +53,18 @@ public abstract class AbstractShipmentStrategy implements ShipmentGenerationStra
         shipment.setStatus(WarehouseDictEnum.PACKAGE_STATUS_CREATED.getCode());//已创建
         return shipment;
     }
-    protected Double getItemWeight(String skuId){
+    protected Double getItemWeight(String skuId) {
         WmsProducts products = productsService.getById(skuId);
-        if(products == null){
-            //抛出异常
-            throw new RuntimeException("商品不存在");
+        if (products == null) {
+            throw new JeecgBootException("商品不存在，商品ID：" + skuId);
         }
-        return products.getNetWeight();
+
+        Double netWeight = products.getNetWeight();
+        if (netWeight == null || netWeight <= 0) {
+            throw new JeecgBootException("商品【" + products.getProductName() + "】净重未维护，无法按重量拆包");
+        }
+
+        return netWeight;
     }
     /**
      * 计算总重量
@@ -66,15 +72,11 @@ public abstract class AbstractShipmentStrategy implements ShipmentGenerationStra
      * @return
      */
     protected double calculateTotalWeight(List<WmsOutOrdersItems> items) {
-        double sum = items.stream().mapToDouble(item -> {
-            String skuId = item.getSkuId();
-            WmsProducts products = productsService.getById(skuId);
-            //重量
-            double weight = products.getNetWeight();
-            //重量乘以数量
-            return weight * item.getPickedQuantity();
+        return items.stream().mapToDouble(item -> {
+            double weight = getItemWeight(item.getSkuId());
+            int quantity = item.getPickedQuantity() == null ? 0 : item.getPickedQuantity();
+            return weight * quantity;
         }).sum();
-        return sum;
     }
 
     /**
