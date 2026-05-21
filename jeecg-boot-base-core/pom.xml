@@ -87,6 +87,12 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
+		<!--		分布式锁-->
+		<dependency>
+			<groupId>org.redisson</groupId>
+			<artifactId>redisson</artifactId>
+			<version>3.17.7</version>
+		</dependency>
 
 		<!-- commons -->
 		<dependency>

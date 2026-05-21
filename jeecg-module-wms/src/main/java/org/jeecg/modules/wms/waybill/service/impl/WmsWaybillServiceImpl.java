@@ -14,6 +14,7 @@ import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jeecg.common.aspect.annotation.Lock;
 import org.jeecg.common.exception.JeecgBootException;
 import org.jeecg.common.util.DateUtils;
 import org.jeecg.common.util.RedisUtil;
@@ -41,6 +42,7 @@ import org.jeecg.modules.wms.waybill.service.IWmsSfService;
 import org.jeecg.modules.wms.waybill.service.IWmsWaybillService;
 import org.jeecg.modules.wms.wmstask.entity.WmsTasksRecords;
 import org.jeecg.modules.wms.wmstask.service.IWmsTasksRecordsService;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,6 +83,8 @@ public class WmsWaybillServiceImpl implements IWmsWaybillService {
     @Autowired
     private WmsInventoryTransByDeliver wmsInventoryTransByDeliver;
 
+    @Autowired
+    private RedissonClient redissonClient;
 
     @Autowired
     private IWmsSfService sfService;
@@ -192,6 +196,7 @@ public class WmsWaybillServiceImpl implements IWmsWaybillService {
      * 请求顺丰生成指定订单的运单
      * 首先请求顺丰下单，成功后生成运单
      */
+    @Lock(formatter = "ORDERS:CREATEWAYBILL:LOCK:#{orderId}",  startDog=true)
     public void generateWaybillForOrder(String orderId) throws Exception {
         //查询出库单
         WmsOutOrders order = wmsOutOrdersService.getById(orderId);
@@ -213,6 +218,8 @@ public class WmsWaybillServiceImpl implements IWmsWaybillService {
         List<String> waybillNos = sfService.requestSfCreateOrder(order, shipments);
         //保存运单号
         owner.saveWaybill(waybillNos, shipments);
+        //模拟时间
+        Thread.sleep(50000);
     }
 
     /**
