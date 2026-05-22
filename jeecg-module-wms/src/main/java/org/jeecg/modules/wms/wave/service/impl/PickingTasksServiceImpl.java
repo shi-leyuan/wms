@@ -1,6 +1,7 @@
 package org.jeecg.modules.wms.wave.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.alibaba.excel.util.StringUtils;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -22,6 +23,10 @@ import org.jeecg.modules.wms.outorder.mapper.WmsOutOrdersAllocationMapper;
 import org.jeecg.modules.wms.outorder.service.IWmsOutOrdersAllocationService;
 import org.jeecg.modules.wms.outorder.service.IWmsOutOrdersItemsService;
 import org.jeecg.modules.wms.outorder.service.IWmsOutOrdersService;
+import org.jeecg.modules.wms.pickroute.MultiProductPickingRouteOptimized;
+import org.jeecg.modules.wms.pickroute.dto.Location;
+import org.jeecg.modules.wms.pickroute.dto.Node;
+import org.jeecg.modules.wms.pickroute.dto.Product;
 import org.jeecg.modules.wms.warehouse.entity.WmsStorageLocations;
 import org.jeecg.modules.wms.warehouse.entity.WmsStorageZones;
 import org.jeecg.modules.wms.warehouse.service.IWmsStorageLocationsService;
@@ -98,6 +103,7 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
 
     /**
      * 生成拣货任务
+     *
      * @param waveIds 波次id集合
      */
     @Override
@@ -111,6 +117,7 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
 
     /**
      * 根据波次统计出库单的商品分配数量,添加到波次拣货明细表
+     *
      * @param waveId 波次id
      * @return
      */
@@ -130,10 +137,10 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
         //根据波次id统计出库单的商品分配数量，分页查询
         IPage<WmsOutOrdersAllocation> page = wmsOutOrdersAllocationService.selectAllocatedQuantityByWaveId(waveId, 1, 100);
         if (page.getRecords().isEmpty()) {
-            throw  new JeecgBootException("没有找到波次下的库存分配明细");
+            throw new JeecgBootException("没有找到波次下的库存分配明细");
         }
 
-        int n=1;
+        int n = 1;
         while (true) {
 
             //获取记录
@@ -235,7 +242,7 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void completePickTask(String waveId){
+    public void completePickTask(String waveId) {
         //查询该波次下的拣货任务列表
         LambdaQueryWrapper<WmsTasks> eq = new LambdaQueryWrapper<WmsTasks>()
                 .eq(WmsTasks::getWaveOrderId, waveId);
@@ -250,17 +257,17 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
                 int remainingQuantity = wmsTask.getQuantity() - wmsTask.getCompletedQuantity();
                 //查询缺货登记
                 WmsShortageRegistration shortageRegistration = wmsShortageRegistrationService.getById(wmsTask.getId());
-                if (shortageRegistration == null || shortageRegistration.getShortageQuantity()==null) {
-                    throw new JeecgBootException("任务"+wmsTask.getTaskNumber()+"未进行缺货登记");
+                if (shortageRegistration == null || shortageRegistration.getShortageQuantity() == null) {
+                    throw new JeecgBootException("任务" + wmsTask.getTaskNumber() + "未进行缺货登记");
                 }
                 //如果缺货登记数量不等于剩余拣货数量
                 if (shortageRegistration.getShortageQuantity() != remainingQuantity) {
-                    throw new JeecgBootException("任务"+wmsTask.getTaskNumber()+"的缺货登记数量与剩余拣货数量不一致");
+                    throw new JeecgBootException("任务" + wmsTask.getTaskNumber() + "的缺货登记数量与剩余拣货数量不一致");
                 }
                 //将任务状态更新为已拣货
                 wmsTask.setTaskStatus(WarehouseDictEnum.TASK_STATUS_COMPLETED.getCode());
                 boolean update = wmsTasksService.updateById(wmsTask);
-                if(! update){
+                if (!update) {
                     throw new JeecgBootException("更新任务状态失败");
                 }
             }
@@ -278,6 +285,7 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
 
     /**
      * 拣货校验：已拣货数量+缺货数量不能大于计划数量
+     *
      * @param pickTaskId 拣货任务id
      */
     @Override
@@ -437,21 +445,23 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
             wmsOutOrdersService.updatePickStatus(Collections.singletonList(outOrderId));
         }
     }
+
     /**
      * 根据波次拣货明细id更新拣货数量
+     *
      * @param waveSkuSummaryId 波次拣货明细id
-     * @param quantity 计划拣货数量
-     * @param pickedQuantity 拣货数量
+     * @param quantity         计划拣货数量
+     * @param pickedQuantity   拣货数量
      */
-    public void updatePickedQuantityByWaveSkuSummaryId(String waveSkuSummaryId, Integer quantity,Integer pickedQuantity) {
+    public void updatePickedQuantityByWaveSkuSummaryId(String waveSkuSummaryId, Integer quantity, Integer pickedQuantity) {
         //更新波次拣货明细的拣货数量
         //sql="update wms_wave_sku_summary set picked_quantity = picked_quantity+"+pickedQuantity+" where id = '"+waveSkuSummaryId+"' and picked_quantity <="+quantity-pickedQuantity;
         LambdaUpdateWrapper<WmsWaveSkuSummary> waveSkuSummaryLambdaUpdateWrapper = new LambdaUpdateWrapper<>();
-        waveSkuSummaryLambdaUpdateWrapper.setSql("picked_quantity = picked_quantity+"+pickedQuantity)
-                .eq(WmsWaveSkuSummary::getId,waveSkuSummaryId)
-                .le(WmsWaveSkuSummary::getPickedQuantity,quantity-pickedQuantity);
+        waveSkuSummaryLambdaUpdateWrapper.setSql("picked_quantity = picked_quantity+" + pickedQuantity)
+                .eq(WmsWaveSkuSummary::getId, waveSkuSummaryId)
+                .le(WmsWaveSkuSummary::getPickedQuantity, quantity - pickedQuantity);
         int update2 = wmsWaveSkuSummaryService.getBaseMapper().update(null, waveSkuSummaryLambdaUpdateWrapper);
-        if(update2 <= 0){
+        if (update2 <= 0) {
             throw new JeecgBootException("波次拣货明细的拣货数量不能大于分配数量!");
         }
         //查询波次拣货明细
@@ -465,6 +475,7 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
 
     /**
      * 完成分拣
+     *
      * @param wmsOutOrdersItemsList 出库单明细
      */
     @Transactional(rollbackFor = Exception.class)
@@ -481,7 +492,7 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
             //根据出库单明细id查询出库单明细
             WmsOutOrdersItems wmsOutOrdersItems = wmsOutOrdersItemsService.getById(items.getId());
             if (wmsOutOrdersItems == null) {
-                throw new RuntimeException("未找到对应的出库单明细,id:"+items.getId());
+                throw new RuntimeException("未找到对应的出库单明细,id:" + items.getId());
             }
             //商品id
             String skuId = wmsOutOrdersItems.getSkuId();
@@ -491,12 +502,12 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
             WmsProducts wmsProducts = wmsProductsService.getById(skuId);
             //如果状态为分拣完成状态，则不允许分拣
             if (WarehouseDictEnum.OUTBOUND_DETAIL_PICKED.getCode().equals(wmsOutOrdersItems.getStatus())) {
-                throw new RuntimeException("出库单商品"+wmsProducts.getProductName()+"为拣货完成状态,不允许分拣");
+                throw new RuntimeException("出库单商品" + wmsProducts.getProductName() + "为拣货完成状态,不允许分拣");
             }
             //根据出库单id查询出库单
             WmsOutOrders wmsOutOrders = wmsOutOrdersService.getById(wmsOutOrdersItems.getOrderId());
             if (wmsOutOrders == null) {
-                throw new RuntimeException("未找到对应的出库单,id:"+wmsOutOrdersItems.getOrderId());
+                throw new RuntimeException("未找到对应的出库单,id:" + wmsOutOrdersItems.getOrderId());
             }
             outOrderIds.add(wmsOutOrders.getId());
             //波次id
@@ -514,5 +525,77 @@ public class PickingTasksServiceImpl implements IPickingTasksService {
 
     }
 
+    /**
+     * 获取拣货路径
+     *
+     * @param waveId 波次id
+     * @return svg代码
+     */
+    public String viewPickPath(String waveId) {
 
+        WmsWaveMaster wmsWaveMaster = wmsWaveMasterService.getById(waveId);
+        if (wmsWaveMaster == null) {
+            throw new RuntimeException("未找到对应的波次,id:" + waveId);
+        }
+        //如果状态是已创建则不允许查询拣货路径
+        if (WarehouseDictEnum.WAVE_CREATED.getCode().equals(wmsWaveMaster.getStatus())) {
+            throw new RuntimeException("波次" + wmsWaveMaster.getWaveNo() + "未完成拣货,不允许查询拣货路径");
+        }
+        //如果存在拣货路径图片，则直接返回
+        if (StringUtils.isNotBlank(wmsWaveMaster.getPickPathImg())) {
+            return wmsWaveMaster.getPickPathImg();
+        }
+
+        //根据波次id查询波次拣货明细
+        List<WmsWaveSkuSummary> waveSkuSummaries = wmsWaveSkuSummaryService.selectByWaveId(waveId);
+
+        // 起始位置
+        Node startNode = new Node(0, 0);
+
+        //从waveSkuSummary中获取商品信息
+        List<Product> products = waveSkuSummaries.stream().map(waveSkuSummary -> {
+            String skuId = waveSkuSummary.getSkuId();
+            WmsProducts wmsProducts = wmsProductsService.getById(skuId);
+            //储位编码
+            String locationCode = waveSkuSummary.getLocationCode();
+            //查询储位
+            WmsStorageLocations wmsStorageLocations = wmsStorageLocationsService.getBaseMapper().selectOne(new LambdaQueryWrapper<WmsStorageLocations>().eq(WmsStorageLocations::getLocationCode, locationCode));
+            //查询储区
+            WmsStorageZones wmsStorageZones = wmsStorageZonesService.getById(wmsStorageLocations.getZoneId());
+            Product product = new Product(wmsProducts.getProductCode(),
+                    wmsProducts.getProductName(),
+                    new Location(wmsStorageZones.getZoneName(),
+                            Integer.parseInt(wmsStorageLocations.getLocationLine()),
+                            Integer.parseInt(wmsStorageLocations.getLocationRank()),
+                            wmsStorageLocations.getLocationCode()));
+            return product;
+        }).collect(Collectors.toList());
+
+
+        // 计算带商品信息的最优路径
+        MultiProductPickingRouteOptimized.RouteWithProducts routeWithProducts = MultiProductPickingRouteOptimized.calculateOptimalPickingRouteWithProducts(startNode, products);
+        //定义拣货路径string
+        StringBuilder pickPath = new StringBuilder();
+        // 生成坐标点数据
+//        System.out.println("\n坐标点数据:");
+        List<MultiProductPickingRouteOptimized.PointWithInfo> pointsData = MultiProductPickingRouteOptimized.generatePointsData(routeWithProducts, startNode, products);
+        for (MultiProductPickingRouteOptimized.PointWithInfo point : pointsData) {
+            pickPath.append(point.toString());
+            pickPath.append("\n");
+        }
+
+        // 生成图形数据
+//        System.out.println("\nSVG图形数据:");
+        String svgData = MultiProductPickingRouteOptimized.generateSVGData(routeWithProducts, startNode, products);
+//        System.out.println(svgData);
+
+        //更新拣货路径
+        WmsWaveMaster wmsWaveMasterUpdate = new WmsWaveMaster();
+        wmsWaveMasterUpdate.setId(waveId);
+        wmsWaveMasterUpdate.setPickPath(pickPath.toString());
+        wmsWaveMasterUpdate.setPickPathImg(svgData);
+        wmsWaveMasterService.updateById(wmsWaveMasterUpdate);
+
+        return svgData;
+    }
 }
