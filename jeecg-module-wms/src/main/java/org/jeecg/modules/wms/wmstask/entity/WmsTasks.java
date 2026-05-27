@@ -184,4 +184,12 @@ public class WmsTasks implements Serializable {
     @Schema(description = "待执行数量")
     @TableField(exist = false)
     private Integer remainingQuantity;
+
+    //任务数量
+    @TableField(exist = false)
+    private java.lang.Integer taskCount;
+
+    //时间字符串
+    @TableField(exist = false)
+    private java.lang.String createTimeString;
 }

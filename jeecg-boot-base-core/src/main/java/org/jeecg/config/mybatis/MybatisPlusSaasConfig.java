@@ -72,6 +72,33 @@ public class MybatisPlusSaasConfig {
             TENANT_TABLE.add("airag_knowledge");
             TENANT_TABLE.add("airag_knowledge_doc");
             TENANT_TABLE.add("airag_model");
+
+            TENANT_TABLE.add("wms_cargo_owners");
+            TENANT_TABLE.add("wms_warehouses");
+//        TENANT_TABLE.add("wms_carrier");
+            TENANT_TABLE.add("wms_inventory");
+            TENANT_TABLE.add("wms_inventory_trans");
+            TENANT_TABLE.add("wms_out_orders");
+            TENANT_TABLE.add("wms_out_orders_allocation");
+            TENANT_TABLE.add("wms_out_orders_items");
+            TENANT_TABLE.add("wms_packaging_material");
+//        TENANT_TABLE.add("wms_product_brand");
+//        TENANT_TABLE.add("wms_product_categories");
+            TENANT_TABLE.add("wms_product_images");
+            TENANT_TABLE.add("wms_products");
+            TENANT_TABLE.add("wms_products_batchnum");
+            TENANT_TABLE.add("wms_shipment");
+            TENANT_TABLE.add("wms_shipment_detail");
+            TENANT_TABLE.add("wms_shortage_registration");
+            TENANT_TABLE.add("wms_stock_in_order_items");
+            TENANT_TABLE.add("wms_stock_in_orders");
+            TENANT_TABLE.add("wms_storage_locations");
+            TENANT_TABLE.add("wms_storage_zones");
+            TENANT_TABLE.add("wms_tasks");
+            TENANT_TABLE.add("wms_tasks_records");
+            TENANT_TABLE.add("wms_wave_master");
+            TENANT_TABLE.add("wms_wave_sku_summary");
+//        TENANT_TABLE.add("wms_wave_strategy");
         }
 
         //2.示例测试

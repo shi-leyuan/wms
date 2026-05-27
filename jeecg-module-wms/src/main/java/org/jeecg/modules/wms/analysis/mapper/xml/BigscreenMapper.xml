@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.jeecg.modules.wms.analysis.mapper.BigscreenMapper">
+
+    <!--统计wms_task-->
+    <select id="countTaskList" parameterType="org.jeecg.modules.wms.wmstask.entity.WmsTasks"
+            resultType="org.jeecg.modules.wms.wmstask.entity.WmsTasks">
+        select count(1)task_count,task_type from wms_tasks t
+        where 1=1
+        <if test="createTimeString != null and createTimeString !=''">
+            and DATE(t.create_time) = #{createTimeString}
+        </if>
+        <if test="taskStatus != null and taskStatus !=''">
+            and t.task_status = #{taskStatus}
+        </if>
+        <!--根据目的仓库查询-->
+        <if test="targetWarehouseId != null and targetWarehouseId!=''">
+            and t.target_warehouse_id = #{targetWarehouseId}
+        </if>
+        <!--根据源仓库查询-->
+        <if test="sourceWarehouseId != null and sourceWarehouseId!=''">
+            and t.source_warehouse_id = #{sourceWarehouseId}
+        </if>
+
+        group by t.task_type
+    </select>
+    <!--统计待发货包裹数：已创建 + 已打包-->
+    <select id="countTodoShipment" resultType="java.lang.Integer">
+        select count(1)
+        from wms_shipment s
+        left join wms_out_orders o on s.order_id = o.id
+        where s.status in ('CREATED', 'PACKED')
+        <if test="warehouseId != null and warehouseId != ''">
+            and o.warehouse_id = #{warehouseId}
+        </if>
+    </select>
+    <!--统计已发货包裹数：已发货-->
+    <select id="countShippedShipment" resultType="java.lang.Integer">
+        select count(1)
+        from wms_shipment s
+        left join wms_out_orders o on s.order_id = o.id
+        where s.status = 'SHIPPED'
+        <if test="warehouseId != null and warehouseId != ''">
+            and o.warehouse_id = #{warehouseId}
+        </if>
+    </select>
+
+    <!-- 入库趋势：统计当前仓库当前年份每个月入库单数量 -->
+    <select id="countInboundTrend"
+            resultType="org.jeecg.modules.wms.analysis.vo.MonthlyTrend">
+        select
+        month(t.create_time) as month,
+        count(1) as count
+        from wms_stock_in_orders t
+        where t.create_time &gt;= #{startTime}
+        and t.create_time &lt; #{endTime}
+        <if test="warehouseId != null and warehouseId != ''">
+            and t.warehouse_id = #{warehouseId}
+        </if>
+        group by month(t.create_time)
+        order by month(t.create_time)
+    </select>
+
+    <!-- 出库趋势：统计当前仓库当前年份每个月出库单数量 -->
+    <select id="countOutboundTrend"
+            resultType="org.jeecg.modules.wms.analysis.vo.MonthlyTrend">
+        select
+        month(t.create_time) as month,
+        count(1) as count
+        from wms_out_orders t
+        where t.create_time &gt;= #{startTime}
+        and t.create_time &lt; #{endTime}
+        <if test="warehouseId != null and warehouseId != ''">
+            and t.warehouse_id = #{warehouseId}
+        </if>
+        group by month(t.create_time)
+        order by month(t.create_time)
+    </select>
+
+    <!-- 货主出库排行：按出库单明细中的打包数量统计 TOP5 -->
+    <select id="countOwnerShipmentRanking"
+            resultType="org.jeecg.modules.wms.analysis.vo.OwnerShipmentRanking">
+        select
+        p.owner_id as ownerId,
+        co.owner_name as ownerName,
+        sum(ifnull(i.packed_quantity, 0)) as totalQuantity
+        from wms_out_orders_items i
+        left join wms_out_orders o on i.order_id = o.id
+        left join wms_products p on i.sku_id = p.id
+        left join wms_cargo_owners co on p.owner_id = co.id
+        where ifnull(i.packed_quantity, 0) &gt; 0
+        <if test="warehouseId != null and warehouseId != ''">
+            and o.warehouse_id = #{warehouseId}
+        </if>
+        group by p.owner_id, co.owner_name
+        order by totalQuantity desc
+        limit 5
+    </select>
+</mapper>

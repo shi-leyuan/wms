@@ -499,6 +499,12 @@
 				<artifactId>flyway-core</artifactId>
 				<version>7.15.0</version>
 			</dependency>
+			<!--airag-->
+			<dependency>
+				<groupId>org.jeecgframework.boot</groupId>
+				<artifactId>jeecg-boot-module-airag</artifactId>
+				<version>${jeecgboot.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
