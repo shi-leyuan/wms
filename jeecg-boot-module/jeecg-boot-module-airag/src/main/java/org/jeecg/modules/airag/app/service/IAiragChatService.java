@@ -1,10 +1,16 @@
 package org.jeecg.modules.airag.app.service;
 
+import dev.langchain4j.data.message.ChatMessage;
+import jakarta.servlet.http.HttpServletRequest;
 import org.jeecg.common.api.vo.Result;
+import org.jeecg.modules.airag.app.entity.AiragApp;
 import org.jeecg.modules.airag.app.vo.AppDebugParams;
 import org.jeecg.modules.airag.app.vo.ChatConversation;
 import org.jeecg.modules.airag.app.vo.ChatSendParams;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
 
 /**
  * ai聊天
@@ -92,4 +98,51 @@ public interface IAiragChatService {
      * @date 2025/3/3 19:49
      */
     Result<?> clearMessage(String conversationId);
+
+    /**
+     * 追加消息
+     *
+     * @param messages
+     * @param message
+     * @param chatConversation
+     * @param topicId
+     * @return
+     * @author chenrui
+     * @date 2025/2/25 19:05
+     */
+    public void appendMessage(List<ChatMessage> messages, ChatMessage message, ChatConversation
+            chatConversation, String topicId);
+
+    /**
+     * 构造消息
+     *
+     * @param conversation
+     * @param topicId
+     * @return
+     * @author chenrui
+     * @date 2025/2/25 15:26
+     */
+    public List<ChatMessage> collateMessage(ChatConversation conversation, String topicId);
+
+    /**
+     * 获取会话
+     *
+     * @param app
+     * @param conversationId
+     * @return
+     * @author chenrui
+     * @date 2025/2/25 19:19
+     */
+    @NotNull
+    public ChatConversation getOrCreateChatConversation(AiragApp app, String conversationId);
+
+    /**
+     * 保存会话
+     *
+     * @param chatConversation
+     * @param temp             是否临时会话
+     * @author chenrui
+     * @date 2025/2/25 19:27
+     */
+    public void saveChatConversation(ChatConversation chatConversation, boolean temp, HttpServletRequest httpRequest);
 }

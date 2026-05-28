@@ -1,6 +1,7 @@
 package org.jeecg.modules.airag.app.service.impl;
 
 import com.alibaba.fastjson.JSONObject;
+import dev.ai4j.openai4j.chat.ContentType;
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.*;
 import dev.langchain4j.model.output.FinishReason;
@@ -87,6 +88,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
         if (oConvertUtils.isNotEmpty(chatSendParams.getAppId())) {
             app = airagAppService.getById(chatSendParams.getAppId());
         }
+        // 从redis获取会话信息,目的是向AI发送消息带上历史消息内容
         ChatConversation chatConversation = getOrCreateChatConversation(app, conversationId);
         // 更新标题
         if (oConvertUtils.isEmpty(chatConversation.getTitle())) {
@@ -137,7 +139,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @author chenrui
      * @date 2025/2/27 15:56
      */
-    private static void closeSSE(SseEmitter emitter, EventData eventData) {
+    public static void closeSSE(SseEmitter emitter, EventData eventData) {
         AssertUtils.assertNotEmpty("请求id不能为空", eventData);
         if (null == emitter) {
             log.warn("会话已关闭");
@@ -322,7 +324,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @date 2025/2/25 19:19
      */
     @NotNull
-    private ChatConversation getOrCreateChatConversation(AiragApp app, String conversationId) {
+    public ChatConversation getOrCreateChatConversation(AiragApp app, String conversationId) {
         if (oConvertUtils.isObjectEmpty(app)) {
             app = new AiragApp();
             app.setId(AiAppConsts.DEFAULT_APP_ID);
@@ -376,7 +378,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @author chenrui
      * @date 2025/2/25 19:27
      */
-    private void saveChatConversation(ChatConversation chatConversation, boolean temp,HttpServletRequest httpRequest) {
+    public void saveChatConversation(ChatConversation chatConversation, boolean temp,HttpServletRequest httpRequest) {
         if (null == chatConversation) {
             return;
         }
@@ -400,7 +402,7 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @author chenrui
      * @date 2025/2/25 15:26
      */
-    private List<ChatMessage> collateMessage(ChatConversation conversation, String topicId) {
+    public List<ChatMessage> collateMessage(ChatConversation conversation, String topicId) {
         List<MessageHistory> messagesHistory = conversation.getMessages();
         if (oConvertUtils.isObjectEmpty(messagesHistory)) {
             return new LinkedList<>();
@@ -452,10 +454,10 @@ public class AiragChatServiceImpl implements IAiragChatService {
      * @author chenrui
      * @date 2025/2/25 19:05
      */
-    private void appendMessage(List<ChatMessage> messages, ChatMessage message, ChatConversation
+    public void appendMessage(List<ChatMessage> messages, ChatMessage message, ChatConversation
             chatConversation, String topicId) {
-
-        if (message.type().equals(ChatMessageType.SYSTEM)) {
+//        if (message.type().equals(ChatMessageType.SYSTEM)) {
+        if (message instanceof SystemMessage) {
             // 系统消息,放到消息列表最前面,并且不记录历史
             messages.add(0, message);
             return;
@@ -472,24 +474,28 @@ public class AiragChatServiceImpl implements IAiragChatService {
                 .topicId(topicId)
                 .datetime(DateUtils.now())
                 .build();
-        if (message.type().equals(ChatMessageType.USER)) {
+//        if (message.type().equals(ChatMessageType.USER)) {
+        if (message instanceof UserMessage) {
             historyMessage.setRole(AiragConsts.MESSAGE_ROLE_USER);
             StringBuilder textContent = new StringBuilder();
             List<MessageHistory.ImageHistory> images = new ArrayList<>();
             List<Content> contents = ((UserMessage) message).contents();
             contents.forEach(content -> {
-                if (content.type().equals(ContentType.IMAGE)) {
+//                if (content.type().equals(ContentType.IMAGE)) {
+                if (content instanceof ImageContent) {
                     ImageContent imageContent = (ImageContent) content;
                     Image image = imageContent.image();
                     MessageHistory.ImageHistory imageMessage = MessageHistory.ImageHistory.from(image.url(), image.base64Data(), image.mimeType());
                     images.add(imageMessage);
-                } else if (content.type().equals(ContentType.TEXT)) {
+//                } else if (content.type().equals(ContentType.TEXT)) {
+                } else if (content instanceof TextContent) {
                     textContent.append(((TextContent) content).text()).append("\n");
                 }
             });
             historyMessage.setContent(textContent.toString());
             historyMessage.setImages(images);
-        } else if (message.type().equals(ChatMessageType.AI)) {
+//        } else if (message.type().equals(ChatMessageType.AI)) {
+        } else if (message instanceof AiMessage) {
             historyMessage.setRole(AiragConsts.MESSAGE_ROLE_AI);
             historyMessage.setContent(((AiMessage) message).text());
         }
